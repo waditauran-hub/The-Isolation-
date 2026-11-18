@@ -77,6 +77,17 @@ const short=(v,n)=>typeof v==='string'&&v.length>0&&v.length<=n;
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const safeSize=v=>{try{return Buffer.byteLength(JSON.stringify(v),'utf8')<=48*1024}catch{return false}};
 const validRoom=r=>typeof r==='string'&&/^sv-[a-z0-9]{5}$/.test(r);
+const cleanChat=(t,n)=>String(t).replace(/[\u0000-\u001f\u007f<>]/g,'').replace(/\s+/g,' ').trim().slice(0,n);
+// chatMessage: el servidor valida el texto, decide nombre y rol (lobby / survivor / killer) con el último estado de la sala y lo reenvía a todos (incluido el remitente)
+function handleChat(s,roomName,room,d){
+ if(!isObj(d)||typeof d.m!=='string'||d.m.length>400)return;
+ const now=Date.now();if(now-(s.chatAt||0)<350)return;s.chatAt=now;
+ const st=room.state;const id=s.pids&&s.pids[roomName];if(!st||!id||!st.names[id])return;
+ const m=cleanChat(d.m,100);if(!m)return;
+ const r=st.st==='play'?(st.roles[id]==='k'?'k':'s'):'lobby';
+ const out={id,n:cleanChat(st.names[id],14)||'JUGADOR',m,r,role:r==='k'?'killer':r==='s'?'survivor':'lobby',t:now};
+ for(const target of room.clients)send(target,{op:'msg',room:roomName,type:'chatMessage',data:out,peer:s.pid});
+}
 function validAct(a){
  if(!isObj(a)||!short(a.id,40)||!['join','mv','chat','look','pick','conf','leave'].includes(a.t))return false;
  if(a.t==='join')return short(a.name,14)&&(a.sk==null||short(a.sk,64))&&(a.ch==null||short(a.ch,48))&&(a.looks==null||(isObj(a.looks)&&safeSize(a.looks)));
@@ -90,8 +101,8 @@ function validPosition(d){return isObj(d)&&short(d.id,40)&&finite(d.x)&&finite(d
 function validGameAction(d){if(!isObj(d)||!short(d.u,40)||!short(d.t,16)||!['mopen','mclose','mdone','stun','atk','kab','esc','noise'].includes(d.t))return false;if(['mopen','mclose','mdone'].includes(d.t))return short(d.id,64);return safeSize(d);}
 function validState(type,d){
  if(!isObj(d)||!safeSize(d))return false;
- if(type==='st')return short(d.code,5)&&isObj(d.pl)&&Object.keys(d.pl).length<=MAX_PLAYERS&&['lobby','sel','play'].includes(d.st)&&Array.isArray(d.chat)&&d.chat.length<=40;
- if(type==='gs')return finite(d.r)&&Array.isArray(d.p)&&d.p.length<=MAX_PLAYERS&&Array.isArray(d.m)&&d.m.length<=32&&Array.isArray(d.b)&&d.b.length<=100&&Array.isArray(d.g)&&d.g.length<=100;
+ if(type==='st')return short(d.code,5)&&isObj(d.pl)&&Object.keys(d.pl).length<=MAX_PLAYERS+1&&['lobby','sel','play'].includes(d.st)&&Array.isArray(d.chat)&&d.chat.length<=40;
+ if(type==='gs')return finite(d.r)&&Array.isArray(d.p)&&d.p.length<=MAX_PLAYERS+1&&Array.isArray(d.m)&&d.m.length<=32&&Array.isArray(d.b)&&d.b.length<=100&&Array.isArray(d.g)&&d.g.length<=100;
  if(type==='deny')return short(d.to,40)&&typeof d.m==='string'&&d.m.length<=180;
  return false;
 }
@@ -106,12 +117,15 @@ function handleMessage(s,raw){
  if(m.op==='leave'){if(s.rooms.has(m.room))leaveRoom(s,m.room);return;}
  if(m.op!=='emit'||!s.rooms.has(m.room)||!short(m.type,16))return;
  const room=rooms.get(m.room);if(!room||!isObj(m.data))return;
+ if(m.type==='chatMessage')return handleChat(s,m.room,room,m.data);
  let ok=false;
  if(m.type==='act'&&s!==room.host)ok=validAct(m.data);
  else if(m.type==='gp'&&s!==room.host)ok=validPosition(m.data);
  else if(m.type==='ga'&&s!==room.host)ok=validGameAction(m.data);
  else if(['st','gs','deny'].includes(m.type)&&s===room.host)ok=validState(m.type,m.data);
  if(!ok)return;
+ if(m.type==='act'&&m.data.t==='join'){s.pids=s.pids||{};if(!s.pids[m.room])s.pids[m.room]=m.data.id;}
+ if(m.type==='st'){const d=m.data,names={};for(const k of Object.keys(d.pl))if(isObj(d.pl[k]))names[k]=typeof d.pl[k].name==='string'?d.pl[k].name:'';room.state={st:d.st,roles:isObj(d.roles)?d.roles:{},names};if(short(d.host,40)){s.pids=s.pids||{};s.pids[m.room]=d.host;}}
  for(const target of room.clients)if(target!==s)send(target,{op:'msg',room:m.room,type:m.type,data:m.data,peer:s.pid});
 }
 setInterval(()=>{if(!presenceDirty)return;presenceDirty=false;const list=[...clients].map(s=>({id:s.pid,presence:s.pres||null}));for(const s of clients)send(s,{op:'peers',list});},750).unref();
