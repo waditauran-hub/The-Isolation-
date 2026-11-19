@@ -113,7 +113,7 @@ function validPresence(p){if(!isObj(p)||!isObj(p.r))return false;const r=p.r;ret
    La simulación dentro de la ronda sigue en el anfitrión (gs/gp/ga), pero el flujo de la sala ya no depende de él. */
 const COUNTDOWN_MS=20000, SELECT_MS=10000, MAX_NAME=14;
 const MAPS=['Bosque maldito','Fábrica abandonada','Salón de juegos'];
-const SURV_IDS=['val','dan','zoe','sam','abr','nic','lia','tom'], KILL_IDS=['cos','enl','pay','doc'], ALL_IDS=SURV_IDS.concat(KILL_IDS);
+const SURV_IDS=['val','dan','zoe','sam','abr','nic','lia','tom'], KILL_IDS=['cos','enl','pay','doc','wlf'], ALL_IDS=SURV_IDS.concat(KILL_IDS);
 const pick1=a=>a[Math.floor(Math.random()*a.length)];
 const humans=R=>Object.keys(R.pl).filter(i=>!R.pl[i].bot);
 function newPl(name,sk,looks,ch){return{name:cleanChat(name||'',MAX_NAME)||'JUGADOR',x:.2+Math.random()*.6,y:.3+Math.random()*.6,sk:short(sk,64)?sk:'basic',looks:isObj(looks)&&safeSize(looks)?looks:{},ch:short(ch,48)?ch:'val',say:'',sayT:0}}
@@ -195,6 +195,8 @@ function handleMessage(s,raw){
  if(m.op!=='emit'||!s.rooms.has(m.room)||!short(m.type,16))return;
  const room=rooms.get(m.room);if(!room||!isObj(m.data))return;
  if(m.type==='chatMessage')return handleChat(s,m.room,room,m.data);
+ // LAST MAN STANDING: el anfitrión avisa y el servidor lo anuncia a TODA la sala (también a quienes ya volvieron al Lobby)
+ if(m.type==='lms'){const d=m.data;if(s===room.host&&isObj(d)&&short(d.c,8)&&isFinite(+d.d)&&isFinite(+d.o)){const out={c:d.c,d:Math.max(0,Math.min(600,+d.d)),o:Math.max(0,Math.min(600,+d.o)),t:Math.max(0,Math.min(600,+d.t||0))};room.lms={...out,at:Date.now()};for(const t of room.clients)send(t,{op:'msg',room:m.room,type:'lmsStarted',data:out,peer:'server'})}return}
  // flujo de sala con autoridad del servidor
  if(m.type==='st'&&s===room.host&&!room.R){if(!validState('st',m.data))return;const R=createRoomState(m.room,s,m.data);if(R){room.R=R;roomBroadcast(room,m.room)}return}
  if(room.R){
