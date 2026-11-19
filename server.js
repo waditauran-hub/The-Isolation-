@@ -13,7 +13,7 @@ const MAX_MESSAGE = 64 * 1024;
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const rooms = new Map();
 let uid = 0, presenceDirty = false;
-const mime = { '.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.svg':'image/svg+xml','.mp3':'audio/mpeg','.ogg':'audio/ogg','.webp':'image/webp','.ico':'image/x-icon' };
+const mime = { '.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.svg':'image/svg+xml','.mp3':'audio/mpeg','.ogg':'audio/ogg','.wav':'audio/wav','.m4a':'audio/mp4','.woff2':'font/woff2','.webp':'image/webp','.ico':'image/x-icon' };
 const httpServer = http.createServer((req,res)=>{
   const url = new URL(req.url || '/', 'http://localhost');
   if(req.method!=='GET'&&req.method!=='HEAD'){res.writeHead(405,{'Allow':'GET, HEAD'});return res.end('Method not allowed');}
@@ -23,8 +23,16 @@ const httpServer = http.createServer((req,res)=>{
   const file=path.resolve(ROOT,'.'+pathname);
   if(file!==path.join(ROOT,'index.html')&&!file.startsWith(ROOT+path.sep)){res.writeHead(403);return res.end('Forbidden')}
   fs.stat(file,(err,stat)=>{if(err||!stat.isFile()){res.writeHead(404);return res.end('Not found')}
-    res.writeHead(200,{'Content-Type':mime[path.extname(file).toLowerCase()]||'application/octet-stream','Content-Length':stat.size,'Cache-Control':path.basename(file)==='index.html'?'no-cache':'public, max-age=3600','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'});
-    if(req.method==='HEAD')return res.end();fs.createReadStream(file).pipe(res);
+    const ext=path.extname(file).toLowerCase(),isAudio=/^\.(mp3|ogg|wav|m4a)$/.test(ext);
+    const base={'Content-Type':mime[ext]||'application/octet-stream','Accept-Ranges':'bytes','Cache-Control':path.basename(file)==='index.html'?'no-cache':isAudio?'public, max-age=86400':'public, max-age=3600','Last-Modified':stat.mtime.toUTCString(),'X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin'};
+    // Rangos HTTP (206): necesarios para que Safari/iOS y Android reproduzcan y adelanten los MP3 (LMS, chase, escape)
+    const rg=/^bytes=(\d*)-(\d*)$/.exec(req.headers.range||'');
+    if(rg&&stat.size>0){let a=rg[1]===''?null:+rg[1],b=rg[2]===''?null:+rg[2];if(a===null){a=Math.max(0,stat.size-(b||0));b=stat.size-1}else if(b===null||b>=stat.size)b=stat.size-1;
+      if(a>b||a>=stat.size){res.writeHead(416,{'Content-Range':'bytes */'+stat.size});return res.end()}
+      res.writeHead(206,Object.assign(base,{'Content-Range':`bytes ${a}-${b}/${stat.size}`,'Content-Length':b-a+1}));if(req.method==='HEAD')return res.end();
+      const st=fs.createReadStream(file,{start:a,end:b});st.on('error',()=>res.destroy());return st.pipe(res)}
+    res.writeHead(200,Object.assign(base,{'Content-Length':stat.size}));
+    if(req.method==='HEAD')return res.end();const st=fs.createReadStream(file);st.on('error',()=>res.destroy());st.pipe(res);
   });
 });
 const clients=new Set();
@@ -111,7 +119,7 @@ function validPresence(p){if(!isObj(p)||!isObj(p.r))return false;const r=p.r;ret
 /* ===== AUTORIDAD CENTRAL DE SALA (Lobby -> Data Select -> Cinemática -> Partida) =====
    El servidor decide los cambios de escena y los envía a TODOS los sockets de la sala al mismo tiempo.
    La simulación dentro de la ronda sigue en el anfitrión (gs/gp/ga), pero el flujo de la sala ya no depende de él. */
-const COUNTDOWN_MS=20000, SELECT_MS=10000, MAX_NAME=14;
+const COUNTDOWN_MS=20000, SELECT_MS=35000, ALLIN_MS=3000, RESULTS_MS=Number(process.env.RESULTS_MS)||90000, MAX_NAME=14;
 const MAPS=['Bosque maldito','Fábrica abandonada','Salón de juegos'];
 const SURV_IDS=['val','dan','zoe','sam','abr','nic','lia','tom'], KILL_IDS=['cos','enl','pay','doc','wlf'], ALL_IDS=SURV_IDS.concat(KILL_IDS);
 const pick1=a=>a[Math.floor(Math.random()*a.length)];
@@ -137,14 +145,16 @@ function startCharacterSelect(room,roomName){const R=room.R,ids=humans(R);if(!id
  }else{ids.forEach(i=>R.roles[i]='s');R.nextKiller=pick1(ids)}
  // cada superviviente arranca con un personaje libre distinto (sin choques); solo falta confirmar
  for(const id of ids){if(R.roles[id]==='k'||R.picks[id])continue;const pref=R.pl[id].ch,list=roleList(R,id),used=new Set(Object.values(R.picks));const c=list.includes(pref)&&!used.has(pref)?pref:list.find(x=>!used.has(x));if(c){R.picks[id]=c;R.pl[id].ch=c}}
- R.hist=R.hist.slice(-20);R.st='sel';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=Date.now()+SELECT_MS;
- rsys(R,'DATA SELECT: 10 segundos para elegir. El asesino debe confirmar su personaje.');
+ R.hist=R.hist.slice(-20);R.st='sel';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=Date.now()+SELECT_MS;R.allIn=false;
+ rsys(R,'DATA SELECT: 35 segundos para elegir. El asesino debe confirmar su personaje.');
  roomBroadcast(room,roomName);
  rmsg(room,roomName,'startCharacterSelect',{killerId:R.killerId,killerIsBot:!!(R.killerId&&R.pl[R.killerId]&&R.pl[R.killerId].bot),killerCharacter:R.kid,map:R.map,players:Object.keys(R.pl).map(id=>({id,name:R.pl[id].name,role:R.roles[id]||'s',bot:!!R.pl[id].bot})),time:SELECT_MS,state:R})}
-function startMatch(room,roomName,why){const R=room.R;R.st='play';R.selEnd=0;R.selLeft=null;rsys(R,why);roomBroadcast(room,roomName);rmsg(room,roomName,'startMatch',{map:R.map,picks:R.picks,roles:R.roles})}
+function startMatch(room,roomName,why){const R=room.R;R.st='play';R.overAt=0;R.selEnd=0;R.selLeft=null;rsys(R,why);roomBroadcast(room,roomName);rmsg(room,roomName,'startMatch',{map:R.map,picks:R.picks,roles:R.roles})}
 function cancelSelect(room,roomName,why){const R=room.R;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.killerId=null;R.votes={};R.mapVotes={};for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R);rsys(R,why);roomBroadcast(room,roomName)}
 function roleList(R,id){return R.mode==='r'?ALL_IDS:R.roles[id]==='k'?KILL_IDS:SURV_IDS}
-function checkAllConfirmed(room,roomName){const R=room.R;if(R.st!=='sel')return;const ids=Object.keys(R.pl);if(ids.length&&ids.every(i=>R.conf[i]&&R.picks[i]))startMatch(room,roomName,'Todos confirmaron. ¡Comienza la ronda!')}
+function checkAllConfirmed(room,roomName){const R=room.R;if(R.st!=='sel')return;const ids=Object.keys(R.pl);if(!(ids.length&&ids.every(i=>R.conf[i]&&R.picks[i])))return;const now=Date.now();
+  // todos eligieron y confirmaron: el reloj salta a 3 s (si quedaba más) y la ronda empieza al llegar a 0
+  if(!R.selEnd||R.selEnd-now>ALLIN_MS)R.selEnd=now+ALLIN_MS;if(!R.allIn){R.allIn=true;rsys(R,'Todos confirmaron. La ronda comienza en 3 segundos.')}selUpdate(room,roomName);roomBroadcast(room,roomName)}
 function selectCharacter(room,roomName,s,id,c,confirmed){const R=room.R;if(R.st!=='sel'||!R.pl[id])return;
  if(c!=null&&c!==R.picks[id]){if(R.conf[id])return;if(!roleList(R,id).includes(c))return rdeny(room,roomName,s,id,'Ese personaje no es de tu rol');
   if(Object.entries(R.picks).some(([k,v])=>v===c&&k!==id))return rdeny(room,roomName,s,id,'Personaje ocupado');R.picks[id]=c;R.pl[id].ch=c}
@@ -170,15 +180,17 @@ function roomAct(room,roomName,s,a){const R=room.R;
 function roomAdmin(room,roomName,s,d){const R=room.R;if(s!==room.host||!isObj(d))return;
  if(d.a==='bot'){R.botMode=!!d.v;if(R.st==='lobby'){R.cdEnd=0;rollRound(R)}rsys(R,R.botMode?'MODO BOT activado: todos son supervivientes contra el asesino IA.':'MODO BOT desactivado: un jugador será el asesino.')}
  else if(d.a==='kick'&&short(d.id,40)&&d.id!==R.host&&R.pl[d.id]){for(const t of room.clients)if(t.pids&&t.pids[roomName]===d.id)rdeny(room,roomName,t,d.id,'Fuiste expulsado/a por el anfitrión');dropPlayer(room,roomName,d.id,' fue expulsado')}
- else if(d.a==='lobby'){R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R)}
+ else if(d.a==='lobby'){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R)}
  else if(d.a==='pub'){R.pub=!!d.v}
  roomBroadcast(room,roomName)}
 function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();
+ // resultados: si el anfitrión no vuelve al lobby en 90 s, el servidor devuelve la sala sola (evita salas trabadas)
+ if(R.st==='play'&&R.overAt&&now-R.overAt>=RESULTS_MS){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R);rsys(R,'Tiempo de resultados agotado: volvieron todos al lobby.');return roomBroadcast(room,roomName)}
  if(R.st==='lobby'){const ok=humans(R).length>=2;R.ready=ok;if(ok&&!R.cdEnd)R.cdEnd=now+COUNTDOWN_MS;if(!ok)R.cdEnd=0;if(R.cdEnd&&now>=R.cdEnd)return startCharacterSelect(room,roomName)}
  else if(R.st==='sel'&&R.selEnd&&now>=R.selEnd){const kid=R.killerId;
   if(kid&&R.pl[kid]&&!R.pl[kid].bot&&!R.picks[kid])return cancelSelect(room,roomName,'Selección cancelada: '+R.pl[kid].name+' no eligió asesino a tiempo. Se sortearon nuevo asesino y mapa.');
   for(const id of Object.keys(R.pl)){if(!R.picks[id]){const free=roleList(R,id).find(c=>!Object.entries(R.picks).some(([k,v])=>k!==id&&v===c));if(free){R.picks[id]=free;R.pl[id].ch=free}}R.conf[id]=1}
-  selUpdate(room,roomName);return startMatch(room,roomName,'Tiempo terminado. Comienza la ronda.')}
+  selUpdate(room,roomName);const all=R.allIn;R.allIn=false;return startMatch(room,roomName,all?'¡Comienza la ronda!':'Tiempo terminado. Comienza la ronda.')}
  roomBroadcast(room,roomName);
  if(room.host){const pr={r:{c:R.code,n:R.nm.slice(0,48),h:(R.pl[R.host]&&R.pl[R.host].name||'Anfitrión').slice(0,24),p:humans(R).length,m:R.map,md:R.mode,s:R.st==='lobby'?'esperando':'en partida',pub:!!R.pub}},js=JSON.stringify(pr);if(js!==room.presJs){room.presJs=js;room.host.pres=pr;presenceDirty=true}}}
 setInterval(()=>{for(const [name,room] of rooms)if(room.R)roomTick(room,name)},200).unref();
@@ -212,6 +224,7 @@ function handleMessage(s,raw){
  else if(['st','gs','deny'].includes(m.type)&&s===room.host)ok=validState(m.type,m.data);
  if(!ok)return;
  if(m.type==='act'&&m.data.t==='join'){s.pids=s.pids||{};if(!s.pids[m.room])s.pids[m.room]=m.data.id;}
+ if(m.type==='gs'&&room.R&&room.R.st==='play'&&m.data.w&&!room.R.overAt)room.R.overAt=Date.now();
  if(m.type==='st'){const d=m.data,names={};for(const k of Object.keys(d.pl))if(isObj(d.pl[k]))names[k]=typeof d.pl[k].name==='string'?d.pl[k].name:'';room.state={st:d.st,roles:isObj(d.roles)?d.roles:{},names};if(short(d.host,40)){s.pids=s.pids||{};s.pids[m.room]=d.host;}}
  for(const target of room.clients)if(target!==s)send(target,{op:'msg',room:m.room,type:m.type,data:m.data,peer:s.pid});
 }
