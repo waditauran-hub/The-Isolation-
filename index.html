@@ -427,8 +427,8 @@ body.resultsOn #back{display:none!important}
 </head><body>
 <canvas id="cv"></canvas>
 <div id="fxWhite" aria-hidden="true"></div><div id="fxBlack" aria-hidden="true"></div>
-<audio id="chaseMusic" src="audio/chase.mp3" loop preload="auto"></audio>
-<audio id="escapeMusic" src="audio/escape.mp3" loop preload="auto"></audio>
+<audio id="chaseMusic" src="audio/chase.mp3" loop preload="none"></audio>
+<audio id="escapeMusic" src="audio/escape.mp3" loop preload="none"></audio>
 <audio id="resultsMusic" src="audio/resultados.mp3" preload="auto"></audio>
 <audio id="killerLaughSound" src="audio/risa.mp3" preload="auto"></audio>
 <div id="cine" aria-hidden="true"><canvas id="cineCv"></canvas></div>
@@ -656,10 +656,57 @@ function mkTrack(el,base,name){const T={el,base,ok:!!el,unlocked:false,on:false,
  return T}
 const chaseMusic=document.getElementById('chaseMusic'),escapeMusic=document.getElementById('escapeMusic');
 const CHASE=mkTrack(chaseMusic,MIX.chase,'chase'),ESCM=mkTrack(escapeMusic,MIX.escape,'escape');
+/* ===== MÚSICA AMBIENTAL MP3 POR ESCENA/MAPA (lazy loading, un solo reproductor) =====
+   Se reutiliza un único HTMLAudioElement para que nunca se superpongan pistas ambientales.
+   preload=none: el archivo se solicita únicamente al entrar en la escena que lo necesita. */
+const MAPM={el:null,src:'',kind:'',base:.35,unlocked:false,blocked:false,pausedForChase:false};
+function mapMusicElement(){
+ if(!MAPM.el){MAPM.el=new Audio();MAPM.el.preload='none';MAPM.el.loop=true;MAPM.el.volume=0;MAPM.el.addEventListener('error',()=>{MAPM.blocked=true;console.warn('No se pudo cargar la música ambiental:',MAPM.src)})}
+ return MAPM.el;
+}
+function mapMusicVolume(){return set.musOn===false?0:Math.max(0,Math.min(1,MAPM.base*musMul()))}
+function mapMusicStop(reset=true){const a=MAPM.el;if(!a)return;a.pause();if(reset){try{a.currentTime=0}catch(e){}}MAPM.pausedForChase=false}
+function mapMusicSet(kind,src,base){
+ const a=mapMusicElement();MAPM.kind=kind;MAPM.base=base;
+ if(MAPM.src!==src){a.pause();try{a.currentTime=0}catch(e){}MAPM.src=src;MAPM.blocked=false;a.src=src;a.loop=true;a.preload='none';a.load()}
+ a.volume=mapMusicVolume();
+ if(MAPM.unlocked&&!MAPM.blocked&&a.paused){const q=a.play();if(q&&q.catch)q.catch(()=>{MAPM.blocked=true})}
+}
+function mapMusicPauseForChase(){const a=MAPM.el;if(!a)return;if(!a.paused){a.pause();MAPM.pausedForChase=true}}
+function mapMusicResume(){const a=MAPM.el;if(!a||!MAPM.src||set.musOn===false||!MAPM.unlocked||MAPM.blocked)return;a.volume=mapMusicVolume();if(a.paused){const q=a.play();if(q&&q.catch)q.catch(()=>{MAPM.blocked=true})}MAPM.pausedForChase=false}
+function mapMusicUnlock(){MAPM.unlocked=true;MAPM.blocked=false;if(MAPM.src&&scene!=='sel'&&scene!=='lobby'&&scene!=='play')return;if(MAPM.src&&MAPM.el&&MAPM.el.paused){MAPM.el.volume=mapMusicVolume();const q=MAPM.el.play();if(q&&q.catch)q.catch(()=>{MAPM.blocked=true})}}
+function mapKey(){
+ const raw=String((R&&R.map)||(G&&G.mapName)||'Bosque maldito').toLowerCase();
+ if(raw.includes('salón')||raw.includes('salon')||raw.includes('arcade')||raw.includes('juego'))return 'salon';
+ if(raw.includes('fábrica')||raw.includes('fabrica')||raw.includes('factory'))return 'fabrica';
+ return 'bosque';
+}
+function mapMusicSceneUpdate(){
+ const a=MAPM.el;
+ if(set.musOn===false){mapMusicStop(true);chaseStop();ESCM.stop();return}
+ if(typeof CINE!=='undefined'&&CINE.on){mapMusicStop(true);chaseStop();ESCM.stop();return}
+ if(scene==='lobby'||scene==='shop'){
+  chaseStop();ESCM.stop();mapMusicSet('lobby','audio/lobby.mp3',.35);return;
+ }
+ if(scene==='sel'){
+  chaseStop();ESCM.stop();const k=mapKey(),src=k==='salon'?'audio/select_salon.mp3':k==='fabrica'?'audio/select_fabrica.mp3':'audio/select_bosque.mp3';mapMusicSet('select',src,.40);return;
+ }
+ if(scene!=='play'||!G||G.over||G.watchLobby){
+  mapMusicStop(true);chaseStop();ESCM.stop();return;
+ }
+ if(LMS.on||LMS.fading||G.lms){mapMusicStop(true);chaseStop();ESCM.stop();return}
+ if(G.open){mapMusicStop(true);chaseStop();ESCM.play();return}
+ ESCM.stop();
+ const P=G.P,danger=P&&P.role==='k'?musDanger():dangerInfo()>0;
+ if(danger&&CHASE.ok){mapMusicPauseForChase();chasePlay();return}
+ chaseStop();
+ const k=mapKey(),src=k==='salon'?'audio/map_salon.mp3':k==='fabrica'?'audio/map_fabrica.mp3':'audio/map_bosque.mp3';
+ if(MAPM.kind!=='map'||MAPM.src!==src)mapMusicSet('map',src,.35);else{MAPM.base=.35;if(a)a.volume=mapMusicVolume();mapMusicResume()}
+}
 function chaseVol(){return CHASE.target()}
 function chasePlay(){CHASE.play()}
 function chaseStop(){CHASE.stop()}
-function chaseMusicVol(){CHASE.sync();ESCM.sync();if(typeof LMS!=='undefined'&&LMS.on&&LMS.cur&&!LMS.fading)LMS.cur.volume=lmsVol()}
+function chaseMusicVol(){CHASE.sync();ESCM.sync();if(MAPM.el&&!MAPM.el.paused)MAPM.el.volume=mapMusicVolume();if(typeof LMS!=='undefined'&&LMS.on&&LMS.cur&&!LMS.fading)LMS.cur.volume=lmsVol()}
 /* ===== RESULTADOS: audio/resultados.mp3 en 6 segmentos (una sola vez, sin bucle) =====
    1 Final Bueno · 2 Final Normal · 3 Final Dúo · 4 Final Solitario · 5 Final Malo · 6 El asesino se ha ido */
 const RES_SEG={1:[0,22],2:[23,45],3:[46,69],4:[70,91],5:[92,111],6:[112,null]};
@@ -711,20 +758,17 @@ function lmsStart(id,elapsed){if(!LMS_T[id])return;if(LMS.on&&LMS.ch===id)return
 function lmsFade(sec){const a=LMS.cur;LMS.on=false;if(!a){LMS.ch=null;return}LMS.fading=true;clearInterval(LMS.fadeT);const v0=a.volume,t0=performance.now(),ms=(sec==null?4.5:sec)*1000;
  LMS.fadeT=setInterval(()=>{const k=Math.min(1,(performance.now()-t0)/ms);a.volume=Math.max(0,v0*(1-k));if(k>=1){clearInterval(LMS.fadeT);a.pause();try{a.currentTime=0}catch(e){}a.volume=lmsVol();if(LMS.cur===a)LMS.cur=null;LMS.fading=false;LMS.ch=null}},50)}
 function lmsReset(){clearInterval(LMS.fadeT);Object.values(LMS.audio).forEach(x=>{x.pause();try{x.currentTime=0}catch(e){}});LMS.on=false;LMS.fading=false;LMS.cur=null;LMS.ch=null;const b=document.getElementById('lmsBanner');if(b)b.classList.remove('on')}
-function musicUpdate(dt){if(!AC||!MUS.started){chaseStop();return}MUS.upd-=dt;MUS.hold=Math.max(0,MUS.hold-dt);if(MUS.upd>0)return;MUS.upd=.2;
- let want='menu';
- if(['lobby','sel','shop'].includes(scene))want='lobby';
- else if(scene==='play'){if(G&&G.over&&G.endShown&&!G.watchLobby)want=(RESM.mp3On||G.resDone)?'':'results';else if(!G||G.over||G.watchLobby)want='lobby';else if(G.open)want='escape';else{const P=G.P,dz=P&&P.role==='k'?musDanger():dangerInfo()>0;if(dz)MUS.hold=.25;want=MUS.hold>0?'chase':'explore'}}
- if(typeof BLK!=='undefined'&&BLK.busy&&BLK.phase!=='out')want='';if(G&&G.wfxOn)want='';
+function musicUpdate(dt){
+ // Las pistas de Lobby, Data Select y mapas son MP3 reales y tienen prioridad propia.
+ mapMusicSceneUpdate();
+ if(!AC||!MUS.started)return;
+ MUS.upd-=dt;if(MUS.upd>0)return;MUS.upd=.2;
+ let want=['title','modes','settings'].includes(scene)?'menu':'';
+ if(typeof BLK!=='undefined'&&BLK.busy&&BLK.phase!=='out')want='';
+ if(G&&G.wfxOn)want='';
  if(set.musOn===false)want='';
- if(LMS.on||LMS.fading){want='';if(LMS.on&&LMS.cur)LMS.cur.volume=lmsVol()}
- // Persecución: audio/chase.mp3 solo mientras el asesino está cerca
- let proc=want;
- if(want==='chase'&&CHASE.ok){chasePlay();proc=''}
- else{chaseStop();if(want==='chase')proc='explore'}
- if(want==='escape'&&ESCM.ok){ESCM.play();proc=''}else ESCM.stop();
- if(proc===MUS.name)return;
- const fade=proc===''&&want==='chase'?.25:proc==='escape'?.35:MUS.name==='chase'||MUS.name===''?.9:1.2;musSet(proc,fade)}
+ if(want!==MUS.name)musSet(want,.35);
+}
 /* compatibilidad con las llamadas anteriores del menú */
 function updateMenuMusicVolume(){musicApplyVol()}
 function playMenuMusic(){MUS.started=true;musEnsure()}
@@ -770,7 +814,7 @@ function audioFootsteps(dt,P){
 }
 
 function scare(){if(!AC||!set.vs)return;const n=AC.sampleRate*.35,b=AC.createBuffer(1,n,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n);const s=AC.createBufferSource(),g=AC.createGain();g.gain.value=set.vs*.35;s.buffer=b;s.connect(g);g.connect(FX);s.start()}
-const unlockGameAudio=()=>{aud();if(AC&&AC.state==='suspended')AC.resume().catch(()=>{});playMenuMusic()};addEventListener('pointerdown',unlockGameAudio,{passive:true});addEventListener('touchstart',unlockGameAudio,{passive:true});addEventListener('click',unlockGameAudio,{passive:true});
+const unlockGameAudio=()=>{aud();if(AC&&AC.state==='suspended')AC.resume().catch(()=>{});playMenuMusic();mapMusicUnlock()};addEventListener('pointerdown',unlockGameAudio,{passive:true});addEventListener('touchstart',unlockGameAudio,{passive:true});addEventListener('click',unlockGameAudio,{passive:true});
 
 
 
@@ -1610,7 +1654,7 @@ function blackThen(fn){if(BLK.busy){return}const el=document.getElementById('fxB
 function show(id){
  if(id==='lobby'&&scene==='play'&&!(G&&G.watchLobby)){if(BLK.phase==='in')return;if(!BLK.busy){blackThen(()=>showNow('lobby'));return}}
  showNow(id)}
-function showNow(id){if(id!=='play'){if(typeof resStop==='function')resStop();if(typeof chaseStop==='function')chaseStop();document.body.classList.remove('resultsOn')}$$('.sc').forEach(e=>e.classList.toggle('on',e.id==id));scene=id;syncMenuMusicForScene(id);const L=['lobby','sel'].includes(id);$('#pnl').classList.toggle('on',false);$('#lobbyUI').classList.toggle('on',id=='lobby');{if(id!='play')['smokeFx','huntFx','trackFx','blurFx'].forEach(k=>{const e=document.getElementById(k);if(e){e.classList.remove('on');if(k==='blurFx')e.style.opacity=0}})}$('#top').classList.toggle('on',false);if(id!='lobby')$('#cdn').textContent='';if(typeof roomCodeUpdate==='function')roomCodeUpdate()}
+function showNow(id){const previousScene=scene;if(id!=='play'){if(typeof resStop==='function')resStop();if(typeof chaseStop==='function')chaseStop();document.body.classList.remove('resultsOn')}if(id==='sel'&&previousScene!=='sel')mapMusicStop(true);if(id==='lobby'&&previousScene!=='lobby')mapMusicStop(true);$$('.sc').forEach(e=>e.classList.toggle('on',e.id==id));scene=id;syncMenuMusicForScene(id);const L=['lobby','sel'].includes(id);$('#pnl').classList.toggle('on',false);$('#lobbyUI').classList.toggle('on',id=='lobby');{if(id!='play')['smokeFx','huntFx','trackFx','blurFx'].forEach(k=>{const e=document.getElementById(k);if(e){e.classList.remove('on');if(k==='blurFx')e.style.opacity=0}})}$('#top').classList.toggle('on',false);if(id!='lobby')$('#cdn').textContent='';if(typeof roomCodeUpdate==='function')roomCodeUpdate()}
 /* ===== ADAPTADOR DE SERVIDOR WEBSOCKET (ver server.js) ===== */
 function wsNet(url){return new Promise((ok,bad)=>{let ws;try{ws=new WebSocket(url)}catch(e){return bad(e)}const rooms={},pe={list:[]},cbs=[];let myp=null,pres=null,t0=setTimeout(()=>bad(new Error('timeout')),6000);
  const snd=o=>{if(ws.readyState==1)ws.send(JSON.stringify(o))};
@@ -3683,7 +3727,7 @@ const CINE_TIPS={
 function cineSynthLaugh(){if(!AC)return;for(let i=0;i<7;i++){audioTone(250-i*14,.17,'sawtooth',.13,175-i*8,i*.24);audioTone(500-i*28,.12,'square',.04,360,i*.24+.02)}audioNoise(1.6,.05,900)}
 function cineClear(){CINE.tm.forEach(clearTimeout);CINE.tm=[];cancelAnimationFrame(CINE.raf);const o=$('#cine');if(o){o.className='';o.style.display='none'}$('#sel')&&$('#sel').classList.remove('cine-p1')}
 function cineAbort(){cineClear();CINE.on=false;CINE.phase=0;if(killerLaughSound){killerLaughSound.pause();killerLaughSound.currentTime=0}}
-function cineStart(){if(!R)return;CINE.on=true;CINE.done=false;const ids=Object.keys(R.pl);
+function cineStart(){if(!R)return;mapMusicStop(true);chaseStop();ESCM.stop();CINE.on=true;CINE.done=false;const ids=Object.keys(R.pl);
  const kid=R.killerId||ids.find(i=>R.roles[i]==='k');CINE.killer=R.mode==='r'?null:(kid&&R.picks[kid]?byId(R.picks[kid]):(R.kid?byId(R.kid):null));
  let sv=ids.filter(i=>R.roles[i]!=='k').map(i=>byId(R.picks[i])).filter(c=>c&&c.id!=='basic');
  if(R.solo&&R.mode==='s'&&R.roles[me.id]==='k'){R._botPool=SURV.map(c=>c.id).sort(()=>Math.random()-.5).slice(0,3);sv=R._botPool.map(byId)}
@@ -3861,12 +3905,15 @@ function handleChat(s,roomName,room,d){
  for(const target of room.clients)send(target,{op:'msg',room:roomName,type:'chatMessage',data:out,peer:s.pid});
 }
 function validAct(a){
- if(!isObj(a)||!short(a.id,40)||!['join','mv','chat','look','pick','conf','leave'].includes(a.t))return false;
+ if(!isObj(a)||!short(a.id,40)||!['join','mv','chat','look','pick','conf','leave','rpChar','rpTp','rpAction','roleplayTransform','roleplayTeleport'].includes(a.t))return false;
  if(a.t==='join')return short(a.name,14)&&(a.sk==null||short(a.sk,64))&&(a.ch==null||short(a.ch,48))&&(a.looks==null||(isObj(a.looks)&&safeSize(a.looks)));
  if(a.t==='mv')return finite(a.x)&&finite(a.y)&&Math.abs(a.x)<=2&&Math.abs(a.y)<=2;
  if(a.t==='chat')return typeof a.m==='string'&&a.m.length<=140;
  if(a.t==='look')return isObj(a.looks)&&safeSize(a.looks);
  if(a.t==='pick')return short(a.c,48);
+ if(a.t==='rpChar'||a.t==='roleplayTransform')return short(a.c,48);
+ if(a.t==='rpTp'||a.t==='roleplayTeleport')return short(a.map,48);
+ if(a.t==='rpAction')return Number.isInteger(a.i)&&a.i>=0&&a.i<5&&short(a.c,48);
  return true;
 }
 function validPosition(d){return isObj(d)&&short(d.id,40)&&finite(d.x)&&finite(d.y)&&Math.abs(d.x)<=100000&&Math.abs(d.y)<=100000&&['f','dx','dy','h','fu','iv','mv','run','jp','sta','ex'].every(k=>d[k]==null||finite(d[k])||typeof d[k]==='boolean');}
@@ -3894,8 +3941,8 @@ function rdeny(room,roomName,s,id,m){rmsg(room,roomName,'deny',{to:id,m},s)}
 function rollRound(R){const ids=humans(R);R.nextMap=pick1(MAPS);R.map=R.nextMap;R.botKiller=!!R.botMode;const prev=R.hist.length?(R.hist[R.hist.length-1].ids||[]):[];let pool=ids.filter(i=>!prev.includes(i));if(!pool.length)pool=ids.slice();R.nextKiller=R.botKiller?null:(pool.length?pick1(pool):null);R.kid=null;R.killerId=null}
 function createRoomState(roomName,s,d){
  const code=roomName.slice(3).toUpperCase();if(!short(d.code,5)||d.code.toUpperCase()!==code||!short(d.host,40)||!isObj(d.pl)||!isObj(d.pl[d.host]))return null;
- const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,botMode:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},now:0};
- R.pl[d.host]=newPl(hp.name,hp.sk,hp.looks,hp.ch);R.pp[d.host]=s.pid;s.pids=s.pids||{};s.pids[roomName]=d.host;
+ const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:d.mode==='r'?'play':'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,botMode:d.mode==='r'?false:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},now:0};
+ R.pl[d.host]=newPl(hp.name,hp.sk,hp.looks,hp.ch);R.pp[d.host]=s.pid;if(R.mode==='r'){R.picks[d.host]=R.pl[d.host].ch;R.roles[d.host]=KILL_IDS.includes(R.pl[d.host].ch)?'k':'s';R.pl[d.host].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=d.host;
  rsys(R,'Sala creada. Comparte el código '+code+'.');rollRound(R);return R}
 function roomBroadcast(room,roomName){const R=room.R;if(!R)return;const now=Date.now();R.now=now;R.cd=R.st==='lobby'&&R.cdEnd?Math.max(0,R.cdEnd-now):null;R.selLeft=R.st==='sel'&&R.selEnd?Math.max(0,R.selEnd-now):null;rmsg(room,roomName,'st',R)}
 function selUpdate(room,roomName){const R=room.R;rmsg(room,roomName,'characterSelectUpdate',{picks:R.picks,conf:R.conf,roles:R.roles,selLeft:R.selEnd?Math.max(0,R.selEnd-Date.now()):0})}
@@ -3930,12 +3977,15 @@ function dropPlayer(room,roomName,id,why){const R=room.R;const p=R&&R.pl[id];if(
  if(wasKiller){rsys(R,'El asesino '+p.name+' se ha ido.');rmsg(room,roomName,'killerLeft',{id,name:p.name})}}
 function roomAct(room,roomName,s,a){const R=room.R;
  if(a.t==='join'){const id=a.id,nm=cleanChat(a.name||'',MAX_NAME);
-  if(R.closed)return rdeny(room,roomName,s,id,'Sala cerrada');if(R.st!=='lobby')return rdeny(room,roomName,s,id,'La partida ya comenzó');
+  if(R.closed)return rdeny(room,roomName,s,id,'Sala cerrada');if(R.st!=='lobby'&&R.mode!=='r')return rdeny(room,roomName,s,id,'La partida ya comenzó');
   if(R.pl[id])return;if(humans(R).length>=MAX_PLAYERS)return rdeny(room,roomName,s,id,'SALA COMPLETA');
   if(!nm||Object.values(R.pl).some(p=>p.name.toLowerCase()===nm.toLowerCase()))return rdeny(room,roomName,s,id,'Ese nombre está vacío o ya se usa en la sala');
-  R.pl[id]=newPl(nm,a.sk,a.looks,a.ch);R.pp[id]=s.pid;s.pids=s.pids||{};s.pids[roomName]=id;rsys(R,nm+' entró');rollRound(R);return roomBroadcast(room,roomName)}
+  R.pl[id]=newPl(nm,a.sk,a.looks,a.ch);R.pp[id]=s.pid;if(R.mode==='r'){R.picks[id]=R.pl[id].ch;R.roles[id]=KILL_IDS.includes(R.pl[id].ch)?'k':'s';R.pl[id].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=id;rsys(R,nm+' entró');rollRound(R);return roomBroadcast(room,roomName)}
  const id=a.id;if(!s.pids||s.pids[roomName]!==id||!R.pl[id])return;const p=R.pl[id];
- if(a.t==='mv'){p.x=Math.min(.97,Math.max(.03,+a.x||0));p.y=Math.min(.97,Math.max(.03,+a.y||0));return}
+ if(R.mode==='r'&&(a.t==='rpChar'||a.t==='roleplayTransform')){if(!ALL_IDS.includes(a.c))return; p.ch=a.c;R.picks[id]=a.c;R.roles[id]=KILL_IDS.includes(a.c)?'k':'s';roomBroadcast(room,roomName);rmsg(room,roomName,'rpTransform',{id,character:a.c});return}
+  if(R.mode==='r'&&(a.t==='rpTp'||a.t==='roleplayTeleport')){if(!MAPS.includes(a.map)&&a.map!=='Lobby')return;R.map=a.map==='Lobby'?MAPS[0]:a.map;for(const pid of Object.keys(R.pl))R.pl[pid].map=R.map;roomBroadcast(room,roomName);rmsg(room,roomName,'rpTeleport',{id,map:a.map});return}
+  if(R.mode==='r'&&a.t==='rpAction'){if(!ALL_IDS.includes(a.c))return;rmsg(room,roomName,'rpAction',{id,character:a.c,index:a.i,at:Date.now()});return}
+  if(a.t==='mv'){p.x=Math.min(.97,Math.max(.03,+a.x||0));p.y=Math.min(.97,Math.max(.03,+a.y||0));return}
  if(a.t==='chat'){const m=cleanChat(a.m||'',140);if(m){p.say=m;p.sayT=Date.now();R.chat.push({id,n:p.name,m,t:Date.now()});R.chat=R.chat.slice(-40)}}
  else if(a.t==='look'){if(isObj(a.looks)&&safeSize(a.looks))p.looks=a.looks}
  else if(a.t==='pick')return selectCharacter(room,roomName,s,id,a.c,false);
@@ -3943,12 +3993,12 @@ function roomAct(room,roomName,s,a){const R=room.R;
  else if(a.t==='leave'){dropPlayer(room,roomName,id,' salió')}
  roomBroadcast(room,roomName)}
 function roomAdmin(room,roomName,s,d){const R=room.R;if(s!==room.host||!isObj(d))return;
- if(d.a==='bot'){R.botMode=!!d.v;if(R.st==='lobby'){R.cdEnd=0;rollRound(R)}rsys(R,R.botMode?'MODO BOT activado: todos son supervivientes contra el asesino IA.':'MODO BOT desactivado: un jugador será el asesino.')}
+ if(d.a==='bot'){if(R.mode==='r')return;R.botMode=!!d.v;if(R.st==='lobby'){R.cdEnd=0;rollRound(R)}rsys(R,R.botMode?'MODO BOT activado: todos son supervivientes contra el asesino IA.':'MODO BOT desactivado: un jugador será el asesino.')}
  else if(d.a==='kick'&&short(d.id,40)&&d.id!==R.host&&R.pl[d.id]){for(const t of room.clients)if(t.pids&&t.pids[roomName]===d.id)rdeny(room,roomName,t,d.id,'Fuiste expulsado/a por el anfitrión');dropPlayer(room,roomName,d.id,' fue expulsado')}
  else if(d.a==='lobby'){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R)}
  else if(d.a==='pub'){R.pub=!!d.v}
  roomBroadcast(room,roomName)}
-function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();
+function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();if(R.mode==='r'){R.st='play';R.cdEnd=0;R.cd=null;R.selEnd=0;R.selLeft=null;R.botMode=false;R.ready=false;return;}
  // resultados: si el anfitrión no vuelve al lobby en 90 s, el servidor devuelve la sala sola (evita salas trabadas)
  // resultados: todos vuelven juntos al lobby cuando termina el segmento de audio/resultados.mp3 (+ fundido)
  const resMs=R.overAt?Math.min(RESULTS_MS,REVEAL_MS+(SEG_LEN[R.endVr]||22)*1000+700):RESULTS_MS;
@@ -4127,4 +4177,84 @@ startRoleplay=function(){startRoleplayOld();rpSyncHud();document.body.classList.
 const rpUiObserver=new MutationObserver(()=>{if(G&&G.rp)rpSyncHud();else{document.getElementById('rpActions')?.classList.remove('on');document.getElementById('rpTP')?.classList.remove('on')}});
 rpUiObserver.observe(document.getElementById('hud'),{attributes:true,attributeFilter:['style','class']});
 </script>
+
+<script>
+/* ===== PARCHE TÁCTIL ROLEPLAY: eventos por pointerdown + delegación ===== */
+(()=>{
+ const $id=id=>document.getElementById(id);
+ const maps=['Lobby',...MAPS];
+ const touchCSS=`
+ #rpTP,#rpInfo,#rpTPModal,#rpTPModal *,#charInfo,#charInfo *,#rpActions,#rpActions *,#ciList button,.rp-transform,#rpTPList button{touch-action:manipulation!important}
+ #rpTP{z-index:5000!important;pointer-events:auto!important}
+ #rpInfo{z-index:5000!important;pointer-events:auto!important}
+ #rpActions{z-index:5000!important;pointer-events:auto!important}
+ #rpTPModal,#charInfo{z-index:9999!important;pointer-events:auto!important}
+ #rpTPModal .card,#charInfo .ci-box{pointer-events:auto!important;max-height:min(88dvh,760px)}
+ #rpTPList{max-height:65dvh;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+ #rpTPList button{min-height:50px;font-size:clamp(14px,3.8vw,18px);padding:12px!important}
+ #ciList .rp-transform{min-height:46px;font-size:14px}
+ #tbs{pointer-events:none!important}#tbs button{pointer-events:auto!important}
+ #joy{pointer-events:auto!important}
+ `;
+ const st=document.createElement('style');st.textContent=touchCSS;document.head.appendChild(st);
+ function isRP(){return !!(R&&R.mode==='r'&&G&&G.rp)}
+ function showTP(){if(!isRP())return;const list=$id('rpTPList');if(!list)return;
+   list.innerHTML=maps.map(m=>`<button class="btn sm" type="button" data-rp-map="${esc(m)}">${esc(m==='Lobby'?'LOBBY':m)}</button>`).join('');
+   $id('rpTPModal').classList.add('on');
+ }
+ function applyTransformLocal(chid){
+   if(!R||R.mode!=='r'||!ALL_IDS.includes(chid)||!R.pl[me.id])return false;
+   const role=KILL_IDS.includes(chid)?'k':'s',ch=byId(chid),pl=R.pl[me.id];
+   R.picks[me.id]=chid;pl.ch=chid;R.roles[me.id]=role;
+   if(G){
+     const P=G.P||G.pl?.[me.id];if(P){P.ch=ch;P.role=role;P.act=null;P.dead=0;P.spec=0;P.esc=0;P.looks=pl.looks||prof.looks||{};P.cd=[0,0,0,0,0];P.hp=P.hpMax||P.hp||100;}
+     if(G.pl?.[me.id]){G.pl[me.id].ch=ch;G.pl[me.id].role=role;G.pl[me.id].act=null;G.pl[me.id].looks=pl.looks||prof.looks||{}}
+   }
+   if(typeof rpSyncHud==='function')rpSyncHud();
+   if(typeof ui==='function')ui();
+   return true;
+ }
+ function transform(chid){if(!applyTransformLocal(chid))return;
+   $id('charInfo')?.classList.remove('on');
+   if(srvMode())send({t:'roleplayTransform',c:chid});
+ }
+ function applyTeleportLocal(map){
+   if(!R||R.mode!=='r'||!MAPS.includes(map)&&map!=='Lobby')return;
+   R.map=map==='Lobby'?MAPS[0]:map;
+   if(G){
+     const wasRp=true;
+     startOnline();startRoleplay();
+     const P=G?.P;if(P){P.x=G.M.WW*.5;P.y=G.M.HH*.5;P.dx=1;P.dy=0;P.act=null;}
+     const mep=G?.pl?.[me.id];if(mep){mep.x=G.M.WW*.5;mep.y=G.M.HH*.5;mep.dx=1;mep.dy=0;mep.act=null;}
+     if(wasRp)rpSyncHud();
+   }
+ }
+ function teleport(map){if(!R||R.mode!=='r')return;$id('rpTPModal')?.classList.remove('on');
+   applyTeleportLocal(map==='Lobby'?'Lobby':map);
+   if(srvMode())send({t:'roleplayTeleport',map});
+ }
+ // pointerdown en captura: evita que canvas/joystick consuman el toque; click sigue como respaldo desktop.
+ document.addEventListener('pointerdown',e=>{
+   const tp=e.target.closest?.('#rpTP');if(tp){e.preventDefault();e.stopImmediatePropagation();showTP();return;}
+   const close=e.target.closest?.('#rpTPClose');if(close){e.preventDefault();e.stopImmediatePropagation();$id('rpTPModal')?.classList.remove('on');return;}
+   const map=e.target.closest?.('#rpTPList [data-rp-map]');if(map){e.preventDefault();e.stopImmediatePropagation();teleport(map.dataset.rpMap);return;}
+   const tr=e.target.closest?.('#ciList [data-rp-transform]');if(tr){e.preventDefault();e.stopImmediatePropagation();transform(tr.dataset.rpTransform);return;}
+   const info=e.target.closest?.('#rpInfo');if(info){e.preventDefault();e.stopImmediatePropagation();if(!isRP())return;CI.tab='s';ciRender();$id('charInfo')?.classList.add('on');return;}
+   const action=e.target.closest?.('#rpActionButtons [data-rpa]');if(action){e.preventDefault();e.stopImmediatePropagation();runAction(+action.dataset.rpa);return;}
+ },true);
+ function runAction(i){if(!isRP())return;const P=G.P,ch=P.ch.id,skills=SK[ch]||[],spec=skills[i];if(!spec)return;
+   const anims={val:['heavy','guard'],dan:['heavy','throw'],zoe:['dash','throw'],sam:['heal','dash'],abr:['guard','guard'],nic:['aura','place'],lia:['throw','vanish'],tom:['slide','throw'],cos:['reach','rush'],enl:['wail','vanish'],pay:['slam','spin'],doc:['inject','place'],wlf:['howl','lunge']};
+   P.act={id:'rp-'+Date.now(),s:0,k:(anims[ch]||['basic'])[i]||'basic',t:0,dur:Math.max(.6,spec.dur||1),dx:P.dx||1,dy:P.dy||0,lock:0,done:{}};P.cd=(P.cd||[]).map(()=>0);
+   if(srvMode())send({t:'rpAction',c:ch,i});gmsg('ROLEPLAY · '+spec.n);
+ }
+ // Alias para accesibilidad y click de ratón/teclado.
+ $id('rpTP')?.addEventListener('click',e=>{e.preventDefault();showTP()});
+ $id('rpTPList')?.addEventListener('click',e=>{const b=e.target.closest('[data-rp-map]');if(b)teleport(b.dataset.rpMap)});
+ $id('ciList')?.addEventListener('click',e=>{const b=e.target.closest('[data-rp-transform]');if(b)transform(b.dataset.rpTransform)});
+ $id('rpTPClose')?.addEventListener('click',()=> $id('rpTPModal')?.classList.remove('on'));
+ $id('rpInfo')?.addEventListener('click',()=>{if(!isRP())return;CI.tab='s';ciRender();$id('charInfo')?.classList.add('on')});
+ // El servidor reenvía estos eventos a todos los miembros de la sala.
+})();
+</script>
+
 </body></html>

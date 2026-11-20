@@ -98,14 +98,14 @@ function handleChat(s,roomName,room,d){
  for(const target of room.clients)send(target,{op:'msg',room:roomName,type:'chatMessage',data:out,peer:s.pid});
 }
 function validAct(a){
- if(!isObj(a)||!short(a.id,40)||!['join','mv','chat','look','pick','conf','leave','rpChar','rpTp','rpAction'].includes(a.t))return false;
+ if(!isObj(a)||!short(a.id,40)||!['join','mv','chat','look','pick','conf','leave','rpChar','rpTp','rpAction','roleplayTransform','roleplayTeleport'].includes(a.t))return false;
  if(a.t==='join')return short(a.name,14)&&(a.sk==null||short(a.sk,64))&&(a.ch==null||short(a.ch,48))&&(a.looks==null||(isObj(a.looks)&&safeSize(a.looks)));
  if(a.t==='mv')return finite(a.x)&&finite(a.y)&&Math.abs(a.x)<=2&&Math.abs(a.y)<=2;
  if(a.t==='chat')return typeof a.m==='string'&&a.m.length<=140;
  if(a.t==='look')return isObj(a.looks)&&safeSize(a.looks);
  if(a.t==='pick')return short(a.c,48);
- if(a.t==='rpChar')return short(a.c,48);
- if(a.t==='rpTp')return short(a.map,48);
+ if(a.t==='rpChar'||a.t==='roleplayTransform')return short(a.c,48);
+ if(a.t==='rpTp'||a.t==='roleplayTeleport')return short(a.map,48);
  if(a.t==='rpAction')return Number.isInteger(a.i)&&a.i>=0&&a.i<5&&short(a.c,48);
  return true;
 }
@@ -175,8 +175,8 @@ function roomAct(room,roomName,s,a){const R=room.R;
   if(!nm||Object.values(R.pl).some(p=>p.name.toLowerCase()===nm.toLowerCase()))return rdeny(room,roomName,s,id,'Ese nombre está vacío o ya se usa en la sala');
   R.pl[id]=newPl(nm,a.sk,a.looks,a.ch);R.pp[id]=s.pid;if(R.mode==='r'){R.picks[id]=R.pl[id].ch;R.roles[id]=KILL_IDS.includes(R.pl[id].ch)?'k':'s';R.pl[id].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=id;rsys(R,nm+' entró');rollRound(R);return roomBroadcast(room,roomName)}
  const id=a.id;if(!s.pids||s.pids[roomName]!==id||!R.pl[id])return;const p=R.pl[id];
- if(R.mode==='r'&&a.t==='rpChar'){if(!ALL_IDS.includes(a.c))return; p.ch=a.c;R.picks[id]=a.c;R.roles[id]=KILL_IDS.includes(a.c)?'k':'s';roomBroadcast(room,roomName);rmsg(room,roomName,'rpTransform',{id,character:a.c});return}
-  if(R.mode==='r'&&a.t==='rpTp'){if(!MAPS.includes(a.map)&&a.map!=='Lobby')return;R.map=a.map==='Lobby'?MAPS[0]:a.map;for(const pid of Object.keys(R.pl))R.pl[pid].map=R.map;roomBroadcast(room,roomName);rmsg(room,roomName,'rpTeleport',{id,map:a.map});return}
+ if(R.mode==='r'&&(a.t==='rpChar'||a.t==='roleplayTransform')){if(!ALL_IDS.includes(a.c))return; p.ch=a.c;R.picks[id]=a.c;R.roles[id]=KILL_IDS.includes(a.c)?'k':'s';roomBroadcast(room,roomName);rmsg(room,roomName,'rpTransform',{id,character:a.c});return}
+  if(R.mode==='r'&&(a.t==='rpTp'||a.t==='roleplayTeleport')){if(!MAPS.includes(a.map)&&a.map!=='Lobby')return;R.map=a.map==='Lobby'?MAPS[0]:a.map;for(const pid of Object.keys(R.pl))R.pl[pid].map=R.map;roomBroadcast(room,roomName);rmsg(room,roomName,'rpTeleport',{id,map:a.map});return}
   if(R.mode==='r'&&a.t==='rpAction'){if(!ALL_IDS.includes(a.c))return;rmsg(room,roomName,'rpAction',{id,character:a.c,index:a.i,at:Date.now()});return}
   if(a.t==='mv'){p.x=Math.min(.97,Math.max(.03,+a.x||0));p.y=Math.min(.97,Math.max(.03,+a.y||0));return}
  if(a.t==='chat'){const m=cleanChat(a.m||'',140);if(m){p.say=m;p.sayT=Date.now();R.chat.push({id,n:p.name,m,t:Date.now()});R.chat=R.chat.slice(-40)}}
