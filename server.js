@@ -115,7 +115,7 @@ function validGameAction(d){if(!isObj(d)||!short(d.u,40)||!short(d.t,16)||!['mop
 function validState(type,d){
  if(!isObj(d)||!safeSize(d))return false;
  if(type==='st')return short(d.code,5)&&isObj(d.pl)&&Object.keys(d.pl).length<=MAX_PLAYERS+1&&['lobby','sel','play'].includes(d.st)&&Array.isArray(d.chat)&&d.chat.length<=40;
- if(type==='gs')return finite(d.r)&&Array.isArray(d.p)&&d.p.length<=MAX_PLAYERS+1&&Array.isArray(d.m)&&d.m.length<=32&&Array.isArray(d.b)&&d.b.length<=100&&Array.isArray(d.g)&&d.g.length<=100;
+ if(type==='gs')return finite(d.r)&&(d.hn==null||d.hn===0||d.hn===1)&&Array.isArray(d.p)&&d.p.length<=MAX_PLAYERS+1&&Array.isArray(d.m)&&d.m.length<=32&&Array.isArray(d.b)&&d.b.length<=100&&Array.isArray(d.g)&&d.g.length<=100;
  if(type==='deny')return short(d.to,40)&&typeof d.m==='string'&&d.m.length<=180;
  return false;
 }

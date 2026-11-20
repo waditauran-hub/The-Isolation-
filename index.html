@@ -714,6 +714,7 @@ function mapMusicSceneUpdate(){
   resetEscapeAudio();mapMusicStop(true);chaseStop();ESCM.stop();return;
  }
  if(LMS.on||LMS.fading||G.lms){mapMusicStop(true);chaseStop();ESCM.stop();return}
+ if(G.isHuntActive){mapMusicStop(false);isChaseAudioPlaying=false;chaseAudio.pause();CHASE.stop();ESCM.stop();return}
  if(G.open){mapMusicStop(true);startEscapeAudio();return}
  ESCM.stop();
  const P=G.P,danger=P&&P.role==='k'?musDanger():dangerInfo()>0;
@@ -2499,7 +2500,7 @@ function antiStuckKiller(K,dt){
 }
 
 function startGame(){resetEscapeAudio();$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';const M=mkBosque(),kc=byId(R.kid),pc=byId(R.picks[me.id]);
- G={M,t0:Date.now(),end:Date.now()+M.T*1000,open:false,over:null,noise:[],bodies:[],gas:[],stats:{m:0,deaths:0,chases:0,dangerTime:0,damageDealt:0,revives:0,survived:0},mt:0,hudT:0,joy:{x:0,y:0},run:0,pcd:0,ab:0,mg:null,mgT:[],flash:0,hitFx:0,skillFx:null,vfx:null,tension:0,hb:0,amb:5,paid:0,msg:'',msgT:0,shake:0,blackout:false,blackoutNext:Date.now()+35000+Math.random()*15000,blackoutEnd:0,blackoutDisabled:false};
+ G={M,t0:Date.now(),end:Date.now()+M.T*1000,open:false,over:null,hunt:0,huntOn:0,isHuntActive:false,huntFxStarted:false,noise:[],bodies:[],gas:[],stats:{m:0,deaths:0,chases:0,dangerTime:0,damageDealt:0,revives:0,survived:0},mt:0,hudT:0,joy:{x:0,y:0},run:0,pcd:0,ab:0,mg:null,mgT:[],flash:0,hitFx:0,skillFx:null,vfx:null,tension:0,hb:0,amb:5,paid:0,msg:'',msgT:0,shake:0,blackout:false,blackoutNext:Date.now()+35000+Math.random()*15000,blackoutEnd:0,blackoutDisabled:false};
  G.P={x:M.spawn.x,y:M.spawn.y,r:12,vx:0,vy:0,dx:1,dy:0,ch:pc,hp:100,sta:1,exh:false,hitInv:0,hitFx:0,inv:2,slow:0,quiet:0,burst:0,hop:0,hopcd:0,shield:0,hid:false,dead:false,deadT:0,resp:0,st:0,face:1};
  G.K={x:M.killerSpawn?.x||1300,y:M.killerSpawn?.y||1125,r:14,face:0,ch:kc,st:'patrol',wp:null,wait:1,tx:0,ty:0,path:[],pt:0,gx:0,gy:0,lx:0,ly:0,lost:0,sT:0,stun:0,stunUntil:0,stunPrev:'patrol',attackCd:0,attackT:0,sta:1,exh:false,attackTarget:null,furia:0,cd:6,invis:false,face2:1,vx:0,vy:0,revealed:0};
   buildGrid();G.bake=null;bakeMap();M.wps=M.wps.filter(p=>!hit(p.x,p.y,14,false));G.K.patrolPoints=buildPatrolPoints();G.K.lastPatrolIndex=-1;G.K.stuckT=0;G.K._lastX=G.K.x;G.K._lastY=G.K.y;cbInitSolo(pc);
@@ -2593,7 +2594,7 @@ function openMG(m){
 function doneMissionClose(m){closeMG();doneMission(m)}
 
 /* --- bucle lógico --- */
-function updateGame(dt){const P=G.P,K=G.K;if(G.over)return;updateArcadeBlackout();if(G.hunt>0){G.hunt-=dt;G.end+=dt*1000}G.huntOn=G.hunt>0?1:0;
+function updateGame(dt){const P=G.P,K=G.K;if(G.over)return;updateArcadeBlackout();cbHuntTick(dt,false);
  const rem=(G.end-Date.now())/1000;G.stats.survived=(Date.now()-G.t0)/1000;if(!P.dead&&K.st==='chase'&&Math.hypot(K.x-P.x,K.y-P.y)<360)G.stats.dangerTime=(G.stats.dangerTime||0)+dt;
  if(rem<=80&&!G.open){G.open=true;G.openedAt=G.t0+(G.M.T-80)*1000;buildGrid();gmsg('¡PORTAL DE ESCAPE ABIERTO!');blip(220,.5,1)}
  if(rem<=0)return finish('k');
@@ -2967,7 +2968,7 @@ function drawOnEnts(now){const P=G.P,L=[],vk=P.role=='k',t=now/1000;
  L.sort((a,b)=>a.y-b.y);L.forEach(q=>{if(q.me){const f=P.dead?Math.min(1,1-Math.max(0,P.deadT)/1.3):cbDown(P)?.92:0,al=(P.fx&&P.fx.vanish>0)?.25:(P.fx&&P.fx.invis>0)?.3:P.resp>0?.4+Math.sin(now/60)*.3:P.inv?.55+Math.sin(now/90)*.25:P.ivT>0?.35:1;const killers=Object.values(G.ents).filter(o=>o.k&&!o.d&&!o.sp),kd=killers.length?Math.min(...killers.map(o=>Math.hypot(o.x-P.x,o.y-P.y))):9999,near=Math.max(0,1-kd/300),phase=t*(P.animRun?2.8:P.animMove?1.8:.45);if(P.role==='k'&&P.tt){const dx=P.tt[0]-P.x,dy=P.tt[1]-P.y,dd=Math.hypot(dx,dy)||1,ux=dx/dd,uy=dy/dd;cx.save();cx.strokeStyle='rgba(255,225,40,.95)';cx.fillStyle='rgba(255,225,40,.95)';cx.lineWidth=5;cx.beginPath();cx.moveTo(P.x+ux*30,P.y+uy*30);cx.lineTo(P.x+ux*78,P.y+uy*78);cx.stroke();cx.beginPath();cx.moveTo(P.x+ux*96,P.y+uy*96);cx.lineTo(P.x+ux*74-uy*12,P.y+uy*74+ux*12);cx.lineTo(P.x+ux*74+uy*12,P.y+uy*74-ux*12);cx.fill();cx.restore()}if(P.role==='k'&&cbId(P)==='pay'&&P.animMove&&!(P.fx&&P.fx.spin>0))cbSpark(P,P.x,P.y,P.face);const pal=P.role==='k'&&P.fx&&P.fx.plane>0?.45:al;ent(cx,P.role==='k'&&P.fx&&P.fx.disg>0&&P.dg?byId(P.dg[1]):P.ch,P.x,P.y+cbLiftY(P),P.face,phase,pal,f*Math.PI/2||cbTilt(P,P.face),prof.eq,P.animMove||0,P.animRun||false,near,P.animJump||0,prof.looks[P.ch.id],Object.assign(cbAnOf(P)||{},{emote:P.emote?{id:P.emote.id,timer:(now-P.emote.at)/1000}:null}));cbDrawActorFx(cx,P,now);if(P.emote&&window.drawPlayerEmoteFx)drawPlayerEmoteFx(cx,P,now)}
   else{const o=q.o,al=(o.fx&&(o.fx.vanish>0||o.fx.invis>0))?0:(o.k&&o.fx&&o.fx.plane>0)?.16:o.iv?(vk?.4:.14):o.v?.55:(vk&&o.q&&Math.hypot(o.x-P.x,o.y-P.y)>200?.45:1);const threat=Object.values(G.ents).filter(v=>v.k&&!v.d&&!v.sp),nd=threat.length?Math.min(...threat.map(v=>Math.hypot(v.x-o.x,v.y-o.y))):9999,fr=o.k?0:Math.max(0,1-nd/300);if(o.k&&o.ch&&o.ch.id==='pay'&&o.mv&&al>0&&!(o.fx&&o.fx.spin>0))cbSpark(o,o.x,o.y,o.f);ent(cx,cbDispCh(o),o.x,o.y+cbLiftY(o),o.f||1,t*(o.run?2.8:1.8),al,cbDown(o)?Math.PI/2*.92:cbTilt(o,o.f||1),(R.pl[q.id]&&R.pl[q.id].sk)||'basic',o.mv&&!cbDown(o)?1:0,!!o.run,fr,o.jp||0,(R.pl[q.id]&&R.pl[q.id].looks&&R.pl[q.id].looks[o.ch.id])||null,Object.assign(cbAnOf(o)||{},{emote:o.emote?{id:o.emote.id,timer:(now-o.emote.at)/1000}:null}));if(al>0)cbDrawActorFx(cx,o,now);if(o.emote&&al>0&&window.drawPlayerEmoteFx)drawPlayerEmoteFx(cx,o,now);if(o.k&&o.at>0){cx.save();cx.strokeStyle='rgba(255,95,70,.9)';cx.lineWidth=5;cx.beginPath();cx.arc(o.x,o.y-18,34,now/1000,now/1000+1.8);cx.stroke();cx.restore()}if(o.k&&o.st>0){cx.save();cx.strokeStyle='rgba(255,225,90,.9)';cx.lineWidth=4;cx.beginPath();cx.arc(o.x,o.y-28,28+Math.sin(now/80)*4,0,Math.PI*2);cx.stroke();cx.font='bold 22px system-ui';cx.textAlign='center';cx.fillStyle='#ffe36b';cx.fillText('✦ ✦ ✦',o.x,o.y-58);cx.restore()}if(al>.2){cx.font='700 12px system-ui';cx.textAlign='center';cx.strokeStyle='#000';cx.lineWidth=3;const dz=o.k&&o.dg&&o.fx&&o.fx.disg>0&&!vk,nm=dz?(R.pl[o.dg[0]]?R.pl[o.dg[0]].name:''):R.pl[q.id]?R.pl[q.id].name:'';cx.strokeText(nm,o.x,o.y-86);cx.fillStyle=o.k&&!dz?'#ff6a6a':'#fff';cx.fillText(nm,o.x,o.y-86)}}})}
 function hudUpdate(){const k=false,P=G.P,rem=Math.max(0,Math.ceil((G.end-Date.now())/1000));
- updateSpectatorUI();$('#hbar').innerHTML=`${G.huntOn?'<b style="color:#ff2020;letter-spacing:.1em">ESCONDETE</b>':`<b style="color:${rem<=80?'#52ff70': '#fff'}">⏱ ${rem}</b>`} · ${healthMarkup(P.hp)} · ${staminaMarkup(P.sta)}${R?.solo&&set.botMode&&G.K?` · BOT ${staminaMarkup(G.K.sta)}`:''} · ${G.blackout?'<b style="color:#ff6666">· APAGÓN</b>':''} ${G.open?'<span class="ok">PORTAL VERDE ABIERTO</span>':'<span style="color:#ff9a9a">PORTAL CERRADO · ABRE EN 80</span>'}${G.K.st=='chase'?' · <b style="color:#ff4a4a">¡TE PERSIGUEN!</b>':''}`;
+ updateSpectatorUI();$('#hbar').innerHTML=`${G.huntOn?'<b style="color:#ff2020;letter-spacing:.1em">ESCONDETE.</b>':`<b style="color:${rem<=80?'#52ff70': '#fff'}">⏱ ${rem}</b>`} · ${healthMarkup(P.hp)} · ${staminaMarkup(P.sta)}${R?.solo&&set.botMode&&G.K?` · BOT ${staminaMarkup(G.K.sta)}`:''} · ${G.blackout?'<b style="color:#ff6666">· APAGÓN</b>':''} ${G.open?'<span class="ok">PORTAL VERDE ABIERTO</span>':'<span style="color:#ff9a9a">PORTAL CERRADO · ABRE EN 80</span>'}${G.K.st=='chase'?' · <b style="color:#ff4a4a">¡TE PERSIGUEN!</b>':''}`;
  const radar=$('#missionRadar');if(P.role!=='k'&&!P.dead&&!P.esc){const nearest=G.M.miss.filter(m=>!m.done).map(m=>({m,d:Math.hypot(m.x-P.x,m.y-P.y),a:Math.atan2(m.y-P.y,m.x-P.x)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<900){const dirs=['→','↘','↓','↙','←','↖','↑','↗'];radar.style.display='block';radar.classList.remove('dim');radar.textContent='✦ MISIÓN CERCA · '+Math.round(nearest.d)+' px · '+dirs[Math.round(((nearest.a+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8]}else{radar.style.display='block';radar.classList.add('dim');radar.textContent='⌖ BUSCANDO MISIONES...'}}else radar.style.display='none';$('#hmis').innerHTML=`<b>${G.M.theme=='factory'?'FÁBRICA':G.M.theme=='arcade'?'SALÓN DE JUEGOS':'BOSQUE'}</b><br><span style="color:#e2b84a">PRINCIPALES ${G.M.miss.filter(m=>m.main!==false&&m.done).length}/${G.M.miss.filter(m=>m.main!==false).length}</span><br><span style="color:#c78cff">SECUNDARIAS ${G.M.miss.filter(m=>m.main===false&&m.done).length}/${G.M.miss.filter(m=>m.main===false).length}</span><br>`+G.M.miss.map(m=>`<div>${m.done?'<span class="ok">✔</span>':m.state==='in_progress'?'<span style="color:#55d9ff">◉</span>':'○'} <span style="color:${m.main===false?'#c78cff':'#e2b84a'}">${m.main===false?'◆':'★'}</span> ${m.n} ${m.done?'':'· '+(m.progress||0)+'/5'}</div>`).join('')+`<div class="mut">Tú: ${esc(me.name)} · ${P.ch.n}</div>`;
  let h='';if(!P.dead){if(P.hid)h='ACTUAR: salir del escondite';else{const m=G.M.miss.find(m=>!m.done&&Math.hypot(m.x-P.x,m.y-P.y)<48);if(m)h='ACTUAR: '+m.n;else{const near=G.M.miss.find(m=>!m.done&&Math.hypot(m.x-P.x,m.y-P.y)<175);if(near)h='MISIÓN CERCA: '+near.n+' · acércate para interactuar';else if(G.M.hides.some(s=>Math.hypot(s.x-P.x,s.y-P.y)<42))h='ACTUAR: esconderse'}}}
  $('#hint').textContent=G.msgT>0?G.msg:h;$('#hint').style.color=G.msgT>0?'#ffe08a':'#fff';if(k){$('#bAct').disabled=P.la>0||P.stunUntil>Date.now();$('#bAct').textContent=P.la>0?'RECARGA '+P.la.toFixed(1)+'s':'ATACAR'}else{$('#bAct').disabled=false;$('#bAct').textContent='ACTUAR'}}
@@ -2998,7 +2999,7 @@ function updateArcadeBlackout(){
 }
 /* ===== PARTIDA EN LÍNEA (el anfitrión es la autoridad; asesino = jugador humano) ===== */
 function startOnline(){resetEscapeAudio();$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';const M=mkBosque(),role=R.roles[me.id]=='k'?'k':'s',pc=byId(R.picks[me.id]);
- G={on:1,host:isHost,M,t0:Date.now(),end:Date.now()+M.T*1000,open:false,over:null,bodies:[],gas:[],ents:{},hb:[],hg:[],stats:{m:0,d:0},joy:{x:0,y:0},run:0,ab:0,mg:null,mgT:[],flash:0,hitFx:0,skillFx:null,vfx:null,shake:0,msg:'',msgT:0,hudT:0,posT:0,stT:0,lastS:Date.now(),lastT:Date.now(),noise:[],tension:0,hb2:0,blackout:false,blackoutNext:Date.now()+35000+Math.random()*15000,blackoutEnd:0,blackoutDisabled:false};
+ G={on:1,host:isHost,M,t0:Date.now(),end:Date.now()+M.T*1000,open:false,over:null,hunt:0,huntOn:0,isHuntActive:false,huntFxStarted:false,bodies:[],gas:[],ents:{},hb:[],hg:[],stats:{m:0,d:0},joy:{x:0,y:0},run:0,ab:0,mg:null,mgT:[],flash:0,hitFx:0,skillFx:null,vfx:null,shake:0,msg:'',msgT:0,hudT:0,posT:0,stT:0,lastS:Date.now(),lastT:Date.now(),noise:[],tension:0,hb2:0,blackout:false,blackoutNext:Date.now()+35000+Math.random()*15000,blackoutEnd:0,blackoutDisabled:false};
  M.miss.forEach(m=>m.done=0);if(isHost)hostInit();
  const localSpawn=spawnFor(me.id,role);G.P={x:localSpawn.x,y:localSpawn.y,r:12,vx:0,vy:0,dx:1,dy:0,ch:pc,role,hp:100,hitFx:0,inv:1,slow:0,quiet:0,burst:0,hop:0,hopcd:0,hid:false,dead:false,deadT:0,resp:0,st:0,face:1,sta:1,furia:0,ivT:0,rs:0,fo:0,spec:false,esc:false,la:0};G.P.fx={};G.P.cd=[0,0,0,0,0];G.P.charges=3;G.P.id=me.id;G.P.tp=0;G.cfx=[];G.cfxId=0;G.vl=[];G.evq=G.evq||[];G.evId=G.evId||0;G.evSeen=0;G.ktr=[];if(isHost)G.W=cbHostW();cbHudInit(pc.id);
  bakeMap();buildGrid();$('#top').classList.remove('on');$('#hud').style.display='block';
@@ -3010,7 +3011,7 @@ function hostInit(){const pl={};Object.keys(R.pl).sort().forEach(id=>{const k=R.
 function hostTick(){if(!G||!G.on||!G.host)return;const now=Date.now(),dt=Math.min(.3,(now-G.lastT)/1000);G.lastT=now;for(const p of Object.values(G.pl)){p.attackFx=Math.max(0,(p.attackFx||0)-dt);if(p.role==='s'&&!p.dead&&!p.esc){const killer=Object.values(G.pl).find(q=>q.role==='k'&&!q.dead&&!q.spec);if(killer&&Math.hypot(killer.x-p.x,killer.y-p.y)<360)p.dangerTime=(p.dangerTime||0)+dt}}
  if(!G.over){updateArcadeBlackout();if(G.W){const W=G.W;for(const p of Object.values(G.pl)){if(p.bot)(p.role==='k'?botKillerThink:botThink)(p,dt,now);if(!p.spec)cbTickActor(W,p,dt);if(p.down&&cbAlive(p)){p.downT-=dt;if(p.downT<=0||!hostAlliesUp(p))hostEliminate(p,null)}if(p.role==='k'&&p.ch==='enl'){const near=Object.values(G.pl).some(q=>q.role==='s'&&cbAlive(q)&&Math.hypot(q.x-p.x,q.y-p.y)<170);p.iv=0}}cbWorld(W,dt)}if(G.svN==null)G.svN=Object.values(G.pl).filter(p=>p.role=='s').length;
   if(!G.lms&&!G.rp&&G.svN>=2){const alive=Object.values(G.pl).filter(p=>p.role=='s'&&!p.dead&&!p.gone);if(alive.length===1&&!alive[0].esc&&LMS_T[alive[0].ch]){const L=LMS_T[alive[0].ch];G.lms={c:alive[0].ch,d:L.d,o:L.o,t0:now};G.end=now+L.d*1000;G.open=false;emit('lms',{c:G.lms.c,d:L.d,o:L.o,t:0})}}
-  if(G.hunt>0){G.hunt-=dt;if(!G.lms)G.end+=dt*1000;if(G.hunt<=0){G.hunt=0}}G.huntOn=G.hunt>0?1:0;
+  cbHuntTick(dt,true);
   const rem=(G.end-now)/1000;if(rem<=(G.lms?G.lms.d-G.lms.o:80)&&!G.open){G.open=true;G.openedAt=now;}
   for(const id in G.pl){const p=G.pl[id];if(!p.spec&&id!=me.id&&(!R.pl[id]||now-p.lp>12000)){p.spec=1;p.dead=1;p.gone=1}
    p.inv-=dt;p.sl-=dt;if(p.stunUntil&&now>=p.stunUntil){p.stunUntil=0;p.st=p.stunPrev||'patrol';p.stunPrev='patrol'}if(p.dead&&!p.spec){p.dd-=dt;if(p.dd<=0)p.spec=1}}
@@ -3042,7 +3043,7 @@ function applyMine(e){const P=G.P,oldHp=P.hp;if(e.fx){const pf=P.fx||{};P.fx=Obj
  if(e.rs!=P.rs){P.rs=e.rs;const sp=spawnFor(me.id,P.role);P.x=sp.x;P.y=sp.y;P.resp=.8;P.dead=false;gmsg('Reapareces en la entrada')}
  if(e.fo!=P.fo){P.fo=e.fo;if(P.hid){P.hid=false;gmsg('¡Te sacaron del escondite!')}}
  if(e.e&&!P.em){P.em=1;gmsg('¡Escapaste! Ahora eres espectador')}if(e.sp&&!P.sm){P.sm=1;gmsg('Eliminado: modo espectador')}}
-function onState(s){if(!G||!G.on)return;G.lastS=Date.now();if(!G.host){if(s.hn&&!G.huntOn)cbHuntStartFx();G.huntOn=s.hn?1:0}if(s.lm&&!G.lmsSeen){G.lmsSeen=1;if(!G.host)G.lms={c:s.lm[0],d:s.lm[1],o:s.lm[2]};lmsStart(s.lm[0],s.lm[3]);gmsg('LAST MAN STANDING: '+byId(s.lm[0]).n.toUpperCase()+' es el último en pie')}if(!G.host)G.end=Date.now()+s.r*1000;if(s.o&&!G.open){gmsg('¡LAS SALIDAS ESTÁN ABIERTAS!');blip(220,.5,1)}G.open=!!s.o;G.blackout=!!s.bo;
+function onState(s){if(!G||!G.on)return;G.lastS=Date.now();if(!G.host){const wasHunt=!!G.isHuntActive;G.isHuntActive=!!s.hn;G.huntOn=s.hn?1:0;G.hunt=s.hn?300:0;G.huntEndsAt=s.hn?Date.now()+300000:0;if(s.hn&&!wasHunt)cbHuntStartFx();else if(!s.hn&&wasHunt){G.huntFxStarted=false;if(!G.lms&&!s.lm&&typeof mapMusicSceneUpdate==='function')mapMusicSceneUpdate()}}if(s.lm&&!G.lmsSeen){G.lmsSeen=1;if(!G.host)G.lms={c:s.lm[0],d:s.lm[1],o:s.lm[2]};lmsStart(s.lm[0],s.lm[3]);gmsg('LAST MAN STANDING: '+byId(s.lm[0]).n.toUpperCase()+' es el último en pie')}if(!G.host)G.end=Date.now()+s.r*1000;if(s.o&&!G.open){gmsg('¡LAS SALIDAS ESTÁN ABIERTAS!');blip(220,.5,1)}G.open=!!s.o;G.blackout=!!s.bo;
  s.m.forEach((v,i)=>{const m=G.M.miss[i];if(s.ms&&m)m.state=s.ms[i]||'pending';if(v&&!m.done){m.done=v;m.state='completed';if(G.mg&&G.mg.id==m.id){closeMG();gmsg('Otro jugador completó: '+m.n)}else gmsg('✔ '+m.n+': −'+m.sec+' s')}});
  G.bodies=s.b.map(b=>({x:b[0],y:b[1],ch:byId(b[2]),sk:b[3]}));G.gas=s.g.map(g=>({x:g[0],y:g[1],t:g[2]}));G.stats=s.s;if(!G.host)G.cfx=s.cx||[];if(!G.host&&s.ev){for(const e of s.ev){if(e[0]>G.evSeen){G.evSeen=e[0];cbEvent(e[1],e[2])}}}const seen={};
  s.p.forEach(e=>{seen[e.i]=1;if(e.i==me.id){applyMine(e);return}let o=G.ents[e.i];if(!o)o=G.ents[e.i]={x:e.x,y:e.y};Object.assign(o,{tx:e.x,ty:e.y,f:e.f,st:e.st||0,at:e.at||0,ch:byId(e.c),d:e.d,h:e.h,iv:e.iv,fu:e.fu,k:e.k,e:e.e,sp:e.sp,l:e.l,v:e.v,id:e.i,dangerTime:e.dangerTime,damageDealt:e.damageDealt,rs:e.rs,escapedAt:e.escapedAt,deadAt:e.deadAt,fx:e.fx||{},ac:e.ac,dn:e.dn,dT:e.dT,mv:e.mv,run:e.rn,q:e.q,hu:e.hu,hp:e.l,role:e.k?'k':'s',dg:e.dg||0,cd:e.cd})});
@@ -3069,7 +3070,7 @@ function onUpdate(dt){const P=G.P,k=P.role=='k';if(G.over)return;if(G.hold&&(per
  let tn=0;if(!k&&!P.dead)for(const id in G.ents){const o=G.ents[id];if(o.k&&!(o.iv&&0)){const d=Math.hypot(o.x-P.x,o.y-P.y);tn=Math.max(tn,1-d/260)}}
  G.tension+=(tn-G.tension)*Math.min(1,dt*2);if(G.tension>.05){G.hb2-=dt;if(G.hb2<=0){G.hb2=.95-.5*G.tension;blip(52,.16,0)}}}
 function hudOn(){if(G.rp)return rpHud();const P=G.P,k=P.role=='k',rem=Math.max(0,Math.ceil((G.end-Date.now())/1000));
- $('#hbar').innerHTML=`${G.huntOn?'<b style="color:#ff2020;letter-spacing:.1em">ESCONDETE</b>':`<b style="color:${rem<=30?'#ff5a5a':'#fff'}">⏱ ${rem}</b>`} · ${k?'<span style="color:#ff5a6a">ASESINO · '+P.ch.n+'</span> '+staminaMarkup(P.sta)+(P.la>0?' · <span class="attack-cooldown">ATAQUE '+P.la.toFixed(1)+'s</span>':''):healthMarkup(P.hp,cbDown(P))+' '+staminaMarkup(P.sta)} · ${G.blackout?'<b style="color:#ff6666">· APAGÓN</b>':''} ${G.lms?'<b style="color:#ff3b3b">LAST MAN STANDING</b> · ':''}${G.open?'<span class="ok">SALIDA ABIERTA</span>':G.lms?'<span style="color:#ff9a9a">SALIDA EN '+Math.max(0,rem-(G.lms.d-G.lms.o))+' s</span>':'<span style="color:#ff9a9a">SALIDA BLOQUEADA</span>'}${Date.now()-G.lastS>5000?' · <b style="color:#ff4a4a">sin conexión</b>':''}`;
+ $('#hbar').innerHTML=`${G.huntOn?'<b style="color:#ff2020;letter-spacing:.1em">ESCONDETE.</b>':`<b style="color:${rem<=30?'#ff5a5a':'#fff'}">⏱ ${rem}</b>`} · ${k?'<span style="color:#ff5a6a">ASESINO · '+P.ch.n+'</span> '+staminaMarkup(P.sta)+(P.la>0?' · <span class="attack-cooldown">ATAQUE '+P.la.toFixed(1)+'s</span>':''):healthMarkup(P.hp,cbDown(P))+' '+staminaMarkup(P.sta)} · ${G.blackout?'<b style="color:#ff6666">· APAGÓN</b>':''} ${G.lms?'<b style="color:#ff3b3b">LAST MAN STANDING</b> · ':''}${G.open?'<span class="ok">SALIDA ABIERTA</span>':G.lms?'<span style="color:#ff9a9a">SALIDA EN '+Math.max(0,rem-(G.lms.d-G.lms.o))+' s</span>':'<span style="color:#ff9a9a">SALIDA BLOQUEADA</span>'}${Date.now()-G.lastS>5000?' · <b style="color:#ff4a4a">sin conexión</b>':''}`;
  const ents={...G.ents,[me.id]:{k,e:P.esc,sp:P.spec,l:P.hp}};
  const radar=$('#missionRadar');if(!k&&!P.dead&&!P.esc){const n=G.M.miss.filter(m=>!m.done).map(m=>({m,d:Math.hypot(m.x-P.x,m.y-P.y),a:Math.atan2(m.y-P.y,m.x-P.x)})).sort((a,b)=>a.d-b.d)[0];radar.style.display='block';radar.classList.toggle('dim',!n||n.d>=900);radar.textContent=n&&n.d<900?'✦ MISIÓN CERCA · '+Math.round(n.d)+' px':'⌖ BUSCANDO MISIONES...'}else radar.style.display='none';$('#hmis').innerHTML=`<b>${G.M.theme=='factory'?'FÁBRICA':G.M.theme=='arcade'?'SALÓN DE JUEGOS':'BOSQUE'}</b> · ${G.M.miss.filter(m=>m.done).length}/${G.M.miss.length}<br>`+G.M.miss.map(m=>`<div>${m.done?'<span class="ok">✔</span>':m.state==='in_progress'?'<span style="color:#55d9ff">◉</span>':'○'} <span style="color:${m.main===false?'#c78cff':'#e2b84a'}">${m.main===false?'◆':'★'}</span> ${m.n}</div>`).join('')+'<div class="mut" style="margin-top:4px">'+Object.keys(R.pl).map(id=>{const e=ents[id]||{};return esc(R.pl[id].name)+(id==me.id?' (tú)':'')+': '+(e.k?'☠':e.e?'✔ escapó':e.sp?'✖':'♥'+e.l)}).join('<br>')+'</div>';
  let h='';if(P.dead)h='';else if(P.spec||P.esc)h='Modo espectador';else if(k){const near=Object.values(G.ents).some(o=>!o.k&&!o.d&&!o.e&&!o.sp&&Math.hypot(o.x-P.x,o.y-P.y)<52);h=near?'ATACAR: alcanzaste a alguien':''}
@@ -3194,6 +3195,36 @@ function cbIntercept(W,a,src,o){const f=cbF(a);if(f.dodge>0)return true;if(o&&o.
  return false}
 function cbStunK(W,k,dur,src,force){const f=cbF(k);if(f.stunImm>0&&!force){if(src)W.event('msg',{to:W.idOf(src),m:'El asesino todavía resiste el aturdimiento'});return false}if(f.plane>0)f.plane=0;f.rush=0;f.wlunge=0;f.fly=0;f.charge=0;f.stun=dur;f.stunImm=dur+3;W.stunHook(k,dur);W.event('stun',{x:k.x,y:k.y,d:dur});return true}
 
+/* --- temporizador autoritativo de Noche de Caza --- */
+function cbHuntKillerActor(){
+ if(!G)return null;
+ if(G.on&&G.pl)return Object.values(G.pl).find(p=>p.role==='k'&&cbId(p)==='wlf')||null;
+ return G.K&&cbId(G.K)==='wlf'?G.K:null;
+}
+function cbHuntEnd(cooldownCompensation=0){
+ if(!G||!G.isHuntActive)return false;
+ G.hunt=0;G.huntOn=0;G.isHuntActive=false;
+ const overdue=G.lms?0:(Number.isFinite(G.huntEndsAt)?Math.max(0,(Date.now()-G.huntEndsAt)/1000):0);
+ const cooldownRemaining=Math.max(0,100-overdue);
+ const killer=cbHuntKillerActor();
+ if(killer){killer.cd=killer.cd||[0,0,0,0,0];killer.cd[1]=cooldownRemaining+Math.max(0,cooldownCompensation)}
+ G.huntEndsAt=0;G.huntLastWall=0;
+ G.huntFxStarted=false;
+ if(!G.lms&&scene==='play'&&!G.over&&typeof mapMusicSceneUpdate==='function')mapMusicSceneUpdate();
+ return true;
+}
+function cbHuntTick(dt,onlineAfterActorTick=false){
+ if(!G||!G.isHuntActive)return;
+ if(G.lms){cbHuntEnd(onlineAfterActorTick?0:dt);return}
+ const now=Date.now(),endsAt=Number.isFinite(G.huntEndsAt)&&G.huntEndsAt>0?G.huntEndsAt:now+Math.max(0,G.hunt||0)*1000;
+ const last=Number.isFinite(G.huntLastWall)&&G.huntLastWall>0?G.huntLastWall:now;
+ const activeUntil=Math.min(now,endsAt),activeMs=Math.max(0,activeUntil-last);
+ if(activeMs>0)G.end+=activeMs;
+ G.huntLastWall=now;G.hunt=Math.max(0,(endsAt-now)/1000);
+ if(now>=endsAt)cbHuntEnd(onlineAfterActorTick?0:dt);
+ else G.huntOn=1;
+}
+
 /* --- condiciones y activación --- */
 function cbCheck(W,a,slot){
  const id=cbId(a),s=SK[id]&&SK[id][slot];if(!s)return 'Sin habilidad';
@@ -3208,7 +3239,7 @@ function cbCheck(W,a,slot){
  if(id==='nic'&&slot===1&&W.fxList().filter(o=>o.t==='ptrap'&&o.o===W.idOf(a)&&!o.trig).length>=2)return 'Máx. 2 trampas';
  const mine=t=>W.fxList().filter(o=>o.t===t&&o.o===W.idOf(a)).length;
  if(id==='dan'&&slot===0&&mine('dtrap')>=2)return 'Máx. 2 trampas';
- if(id==='wlf'&&slot===1&&typeof G!=='undefined'&&G&&(G.hunt>0||G.huntOn))return 'Noche activa';
+ if(id==='wlf'&&slot===1&&typeof G!=='undefined'&&G&&(G.isHuntActive||G.hunt>0||G.huntOn))return 'ACTIVA';
  if(f.charge>0&&!s.hold)return 'Cargando';
  return '';
 }
@@ -3217,7 +3248,7 @@ function cbUse(W,a,slot,aim){const why=cbCheck(W,a,slot);if(why)return why;const
  if(id==='cos'&&f0.cmode>0){if(slot===0){if(W.auth){W.addFx({t:'clone',x:a.x+(Math.random()-.5)*40,y:a.y+(Math.random()-.5)*30,l:20,o:W.idOf(a),f:1,r:0});W.event('snd',{x:a.x,y:a.y,s:'vanish'})}return ''}
   f0.cmode=0;f0.invis=0;a.cmWas=0;a.cd=a.cd||[0,0,0,0,0];a.cd[1]=s.cd*(W.aiMul||1);if(W.auth)W.event('snd',{x:a.x,y:a.y,s:'vanish'});return ''}
  if(id==='enl'&&slot===0&&f0.plane>0){f0.plane=0;return ''}
- a.cd=a.cd||[0,0,0,0,0];a.cd[slot]=s.cd*cbCdMul(id)*(isK?(W.aiMul||1):1);
+ a.cd=a.cd||[0,0,0,0,0];a.cd[slot]=(id==='wlf'&&slot===1)?0:s.cd*cbCdMul(id)*(isK?(W.aiMul||1):1);
  if(isK&&W.auth&&id==='pay')W.event('laugh',{x:a.x,y:a.y});
  if(id==='lia'&&slot===0){if((a.charges??3)<=0)a.charges=3;a.charges--;if(a.charges>0)a.cd[0]=.55}
  let dx=aim&&isFinite(aim.dx)?aim.dx:(a.dx??1),dy=aim&&isFinite(aim.dy)?aim.dy:(a.dy??0);const n=Math.hypot(dx,dy)||1;dx/=n;dy/=n;
@@ -3264,7 +3295,7 @@ function cbStep(W,a,dt){const A=a.act;if(!A)return;A.t+=dt;const f=cbF(a),T=A.t,
   case 'doc2':if(once('p',.3)&&au){const mine=W.fxList().filter(o=>o.t==='vtrap'&&o.o===me2);if(mine.length>=10)mine[0].l=-1;const p=cbRay(a.x,a.y,A.dx,A.dy,22);W.addFx({t:'vtrap',x:p.x,y:p.y,o:me2,l:99999,busy:.6,f:0});W.event('place',{x:p.x,y:p.y,c:'120,220,80',s:'clank',to:me2})}break;
   case 'doc3':if(once('t',.25)&&au){W.addFx({t:'jar',x:a.x,y:a.y,vx:A.dx*560,vy:A.dy*560,l:430/560,o:me2});W.event('snd',{x:a.x,y:a.y,s:'throw'})}break;
   case 'wlf0':if(once('r',0)){const pw=Math.max(.12,Math.min(1,A.pw??.7));f.charge=0;f.wlunge=.22+.58*pw;f.dash=f.wlunge;a.rushTot=f.wlunge;a.dashV={x:A.dx,y:A.dy,sp:560};a.rushP={x:a.x,y:a.y,t:0};if(au)W.event('snd',{x:a.x,y:a.y,s:'roarS'})}break;
-  case 'wlf1':if(once('h',.5)&&au){G.hunt=300;G.huntOn=1;W.event('howl',{x:a.x,y:a.y,s:'howl'})}break;
+  case 'wlf1':if(once('h',.5)&&au&&!G.isHuntActive&&!G.lms&&(a.cd||[])[1]<=0){G.hunt=300;G.huntEndsAt=Date.now()+300000;G.huntLastWall=Date.now();G.huntOn=1;G.isHuntActive=true;G.huntFxStarted=false;W.event('howl',{x:a.x,y:a.y,s:'howl'})}break;
   case 'wlf2':if(once('f',0)){f.fix=12;if(au)W.event('aura',{x:a.x,y:a.y,c:'255,60,40',r:90,s:'boost'})}break;
   case 'wlf3':if(once('r',.3)){cbTrack(W,a,me2);if(au)W.event('roar',{x:a.x,y:a.y,s:'roar'})}break;
   case 'enl0':if(once('p',0)){f.plane=10;a.planeOn=1;if(au)W.event('vanish',{x:a.x,y:a.y,s:'vanish'})}break;
@@ -3399,7 +3430,7 @@ function cbKillerChoose(W,a,tgt,dist,seen){const id=cbId(a),f=cbF(a),ok=sl=>!cbC
  if(id==='pay'){if(seen&&dist<95&&ok(0))return use(0,aim);if(seen&&dist>120&&dist<360&&ok(2))return use(2,aim);if(seen&&dist>230&&dist<950&&ok(3))return use(3,aim);if(seen&&dist<520&&ok(1))return use(1,aim);if(!seen&&ok(4)&&Math.random()<.3)return use(4)}
  else if(id==='cos'){if(seen&&dist<320&&dist>50&&ok(3))return use(3,aim);if(seen&&dist>90&&dist<400&&ok(2))return use(2,aim,Math.min(1,dist/360+.2));if(!seen&&ok(0)&&Math.random()<.25)return use(0);if(seen&&dist>280&&ok(1)&&Math.random()<.3)return use(1);if(!seen&&ok(4)&&Math.random()<.3)return use(4)}
  else if(id==='doc'){if(seen&&dist<400&&dist>60&&ok(3))return use(3,aim);if(seen&&dist<300&&ok(0))return use(0,aim);if(!seen&&ok(2)&&G.M.miss.some(m=>!m.done&&Math.hypot(m.x-a.x,m.y-a.y)<280))return use(2);if(seen&&dist>180&&dist<500&&ok(2)&&Math.random()<.18)return use(2);if(!seen&&ok(1)&&Math.random()<.12)return use(1);if(!seen&&ok(4)&&Math.random()<.3)return use(4)}
- else if(id==='wlf'){if(seen&&dist>90&&dist<430&&ok(0))return use(0,aim,Math.min(1,dist/420));if(seen&&dist<520&&ok(2))return use(2);if(!seen&&ok(3)&&Math.random()<.35)return use(3);if(ok(1)&&!G.lms&&Math.random()<.04)return use(1)}
+ else if(id==='wlf'){if(seen&&dist>90&&dist<430&&ok(0))return use(0,aim,Math.min(1,dist/420));if(seen&&dist<520&&ok(2))return use(2);if(!seen&&ok(3)&&Math.random()<.35)return use(3);if(!G.isHuntActive&&!G.lms&&(a.cd||[])[1]<=0&&ok(1)&&Math.random()<.04)return use(1)}
  else if(id==='enl'){if(seen&&dist>220&&dist<700&&ok(0))return use(0);if(seen&&dist<240&&ok(1))return use(1,aim);if(seen&&dist<430&&dist>80&&ok(2))return use(2,aim);if(seen&&dist<170&&ok(3))return use(3);if(!seen&&ok(4)&&Math.random()<.3)return use(4)}
  return false}
 function cbAIKiller(K,P,dist,seen,dt){K.aiT=(K.aiT||0)-dt;if(K.aiT>0||!K.cd||P.dead)return;if((P.fx&&P.fx.invis>0)||(K.fx&&K.fx.blind>0))return;K.aiT=.35;const pr=set.ai==='facil'?.45:set.ai==='dificil'?1:.75;if(Math.random()>pr)return;K.dx=Math.cos(K.face||0);K.dy=Math.sin(K.face||0);cbKillerChoose(G.W,K,P,dist,seen)}
@@ -3670,7 +3701,7 @@ function keyBadges(force){const role=G&&G.P?G.P.role:'s',key=role+(DEV.mobile?'m
  set1('bRun','SHIFT');set1('bJump','ESPACIO');set1('bAct',k?'E / CLIC':'G');set1('bAb',null);for(let i=0;i<5;i++)set1('bS'+(i+1),(k?KEYLBL_K:KEYLBL_S)[i]||null)}
 function runBtnSync(){const b=document.getElementById('bRun');if(!b||!G)return;if(DEV.mobile){const P=G.P;if(G.run&&P&&P.exh){G.run=0;if(typeof gmsg==='function')gmsg('Sin resistencia: CORRER OFF')}const on=!!G.run;if(b._on!==on){b._on=on;b.classList.toggle('runon',on);b.innerHTML=on?'CORRER<br><b>ON</b>':'CORRER<br><b>OFF</b>'}}else if(b._on!==undefined){b._on=undefined;b.classList.remove('runon');b.textContent='CORRER'}}
 devApply();
-function cbHuntStartFx(){if(!G)return;G.flash=1.4;cbSnd('howl',1)}
+function cbHuntStartFx(){if(!G||G.huntFxStarted)return;G.huntFxStarted=true;G.flash=1.4;mapMusicStop(false);isChaseAudioPlaying=false;chaseAudio.pause();try{chaseAudio.currentTime=0}catch(_){}CHASE.stop();ESCM.stop();if(typeof AudioManager!=='undefined'&&AudioManager.bgmAudio)AudioManager.bgmAudio.pause();blip(65,.55,1);cbSnd('howl',1)}
 const LAUGH={last:0};
 function cbLaugh(x,y){if(!set.vfx)return;const now=performance.now();if(now-LAUGH.last<1800)return;LAUGH.last=now;const V=cbViewPos(),d=Math.hypot(V.x-x,V.y-y),vol=Math.max(.28,Math.min(1,1-d/1600))*(set.vs??1);
  try{const a=new Audio('audio/risa.mp3');a.preservesPitch=false;a.mozPreservesPitch=false;a.webkitPreservesPitch=false;a.playbackRate=.74+Math.random()*.1;a.volume=Math.max(0,Math.min(1,Math.max(.28,Math.min(1,1-d/1600))*sfxMixVol(MIX.risa)));const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}cbSnd('laughS',vol)}
@@ -3967,7 +3998,7 @@ function validGameAction(d){if(!isObj(d)||!short(d.u,40)||!short(d.t,16)||!['mop
 function validState(type,d){
  if(!isObj(d)||!safeSize(d))return false;
  if(type==='st')return short(d.code,5)&&isObj(d.pl)&&Object.keys(d.pl).length<=MAX_PLAYERS+1&&['lobby','sel','play'].includes(d.st)&&Array.isArray(d.chat)&&d.chat.length<=40;
- if(type==='gs')return finite(d.r)&&Array.isArray(d.p)&&d.p.length<=MAX_PLAYERS+1&&Array.isArray(d.m)&&d.m.length<=32&&Array.isArray(d.b)&&d.b.length<=100&&Array.isArray(d.g)&&d.g.length<=100;
+ if(type==='gs')return finite(d.r)&&(d.hn==null||d.hn===0||d.hn===1)&&Array.isArray(d.p)&&d.p.length<=MAX_PLAYERS+1&&Array.isArray(d.m)&&d.m.length<=32&&Array.isArray(d.b)&&d.b.length<=100&&Array.isArray(d.g)&&d.g.length<=100;
  if(type==='deny')return short(d.to,40)&&typeof d.m==='string'&&d.m.length<=180;
  return false;
 }
