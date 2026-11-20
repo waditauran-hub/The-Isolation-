@@ -3625,7 +3625,21 @@ function cbHudUpdate(){if(!G||!G.P)return;keyBadges();runBtnSync();const P=G.P,i
   const lock=!!why&&why!=='Recargando';b.classList.toggle('lock',lock);b.classList.toggle('ready',!why);b.querySelector('.why').textContent=lock?why:extra}}
 function cbIsHold(i){if(!G||!G.P||!G.on)return false;const id=cbId(G.P),s=(SK[id]||[])[i];return !!(s&&s.hold&&!(id==='cos'&&G.P.fx&&G.P.fx.cmode>0))}
 function cbHoldStart(i){const P=G.P;if(!G||G.over||P.dead||P.spec||G.hold)return;const Wv=cbViewW(),why=cbCheck(Wv,P,i),s=SK[cbId(P)][i];if(why){gmsg(s.n+': '+why);cbSnd('deny');return}G.hold={s:i,t0:performance.now(),max:s.hmax||1};P.fx.charge=(s.hmax||1)+.8;gsend('kab',{a:'hold',s:i});cbSnd('build',.5)}
-function cbHoldEnd(){const h=G&&G.hold;if(!h)return;G.hold=null;const P=G.P,pw=Math.max(.1,Math.min(1,(performance.now()-h.t0)/1000/h.max));P.fx.charge=0;cbUse(cbViewW(),P,h.s,{dx:P.dx,dy:P.dy,pw});gsend('kab',{a:'ab',s:h.s,dx:+(P.dx||1).toFixed(3),dy:+(P.dy||0).toFixed(3),pw:+pw.toFixed(2)})}
+// Dirección de habilidades en PC: usa la dirección que se está manteniendo con WASD/flechas.
+ // En móvil se conserva exactamente el apuntado del joystick (P.dx/P.dy).
+function cbAbilityAim(P){
+ if(!P)return{dx:1,dy:0};
+ if(!DEV.mobile){
+  const ix=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
+  const iy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);
+  const m=Math.hypot(ix,iy);
+  if(m>.01){P.dx=ix/m;P.dy=iy/m;return{dx:P.dx,dy:P.dy}}
+ }
+ const dx=Number.isFinite(P.dx)?P.dx:1,dy=Number.isFinite(P.dy)?P.dy:0;
+ const m=Math.hypot(dx,dy)||1;
+ return{dx:dx/m,dy:dy/m};
+}
+function cbHoldEnd(){const h=G&&G.hold;if(!h)return;G.hold=null;const P=G.P,pw=Math.max(.1,Math.min(1,(performance.now()-h.t0)/1000/h.max)),aim=cbAbilityAim(P);P.fx.charge=0;cbUse(cbViewW(),P,h.s,{...aim,pw});gsend('kab',{a:'ab',s:h.s,dx:+aim.dx.toFixed(3),dy:+aim.dy.toFixed(3),pw:+pw.toFixed(2)})}
 /* ===== CONTROLES SEGÚN DISPOSITIVO ===== */
 const KEY_S={e:0,f:1},KEY_K={f:0,r:1,t:2,h:3,q:4};
 const KMAP=new Proxy({},{get:(o,k)=>{const m=(G&&G.P&&G.P.role==='k')?KEY_K:KEY_S;return m[k]},has:(o,k)=>{const m=(G&&G.P&&G.P.role==='k')?KEY_K:KEY_S;return k in m}});
@@ -3646,10 +3660,10 @@ function cbLaugh(x,y){if(!set.vfx)return;const now=performance.now();if(now-LAUG
  try{const a=new Audio('audio/risa.mp3');a.preservesPitch=false;a.mozPreservesPitch=false;a.webkitPreservesPitch=false;a.playbackRate=.74+Math.random()*.1;a.volume=Math.max(0,Math.min(1,Math.max(.28,Math.min(1,1-d/1600))*sfxMixVol(MIX.risa)));const p=a.play();if(p&&p.catch)p.catch(()=>{})}catch(e){}cbSnd('laughS',vol)}
 function cbOverlays(P){const tog=(id,on,op)=>{const e=document.getElementById(id);if(!e)return;if(e.classList.contains('on')!==on)e.classList.toggle('on',on);if(op!=null)e.style.opacity=on?op:0};const live=!!(G&&!G.over&&scene==='play');
  tog('huntFx',live&&!!G.huntOn);tog('trackFx',live&&P.role==='k'&&P.fx&&P.fx.track>0);const bl=live&&P.role!=='k'&&P.fx&&P.fx.blur>0;tog('blurFx',bl,bl?Math.min(1,P.fx.blur/1.2).toFixed(2):null)}
-function cbPress(slot){if(!G||G.over||G.rp)return;const P=G.P;if(P.dead||P.spec||P.esc)return;
- if(!G.on){const why=cbUse(G.W,P,slot,{dx:P.dx,dy:P.dy});if(why){gmsg(SK[cbId(P)][slot].n+': '+why);cbSnd('deny')}return}
+function cbPress(slot){if(!G||G.over||G.rp)return;const P=G.P;if(P.dead||P.spec||P.esc)return;const aim=cbAbilityAim(P);
+ if(!G.on){const why=cbUse(G.W,P,slot,aim);if(why){gmsg(SK[cbId(P)][slot].n+': '+why);cbSnd('deny')}return}
  const Wv=cbViewW(),why=cbCheck(Wv,P,slot);if(why){gmsg(SK[cbId(P)][slot].n+': '+why);cbSnd('deny');return}
- cbUse(Wv,P,slot,{dx:P.dx,dy:P.dy});gsend(P.role==='k'?'kab':'stun',{a:'ab',s:slot,dx:+(P.dx||1).toFixed(3),dy:+(P.dy||0).toFixed(3)})}
+ cbUse(Wv,P,slot,aim);gsend(P.role==='k'?'kab':'stun',{a:'ab',s:slot,dx:+aim.dx.toFixed(3),dy:+aim.dy.toFixed(3)})}
 function cbStatusHtml(P){const f=P.fx||{},L=[['slow','Lento','#7aa0ff'],['fear','Miedo','#b08cff'],['root','Inmovilizado','#ff8a5a'],['cap','Encerrado','#7ae0ff'],['stun','Aturdido','#ffe36b'],['dizzy','Mareado','#ff6aa0'],['haste','Veloz','#ffd36b'],['burst','Impulso','#ffa040'],['dr','Resistencia','#9ad8ff'],['guard','Protegido','#ffd27a'],['shield2','Escudo','#ffd27a'],['quiet','Sigilo','#9aa8c8'],['vision','Vista aumentada','#9cc8ff'],['tmap','Mapa táctico','#9cc8ff'],['rev','Revelado','#ff6a6a'],['heat','Motosierra recalentada','#c8c8c8'],['vuln','Vulnerable','#c8c8c8'],['furia','Furia','#ff6a4a'],['sneak','Acecho','#c890ff'],['vanish','Invisible','#b8a8ff'],['block','Bloqueo','#ffb450'],['bubble','Escudo celeste','#78dcff'],['regen','Curación','#5aff8c'],['run2','Carrera','#7dffaa'],['yh','Aura veloz','#ffe13c'],['invis','Invisible','#c8c8ff'],['dodge','Esquive','#9ad8ff'],['blind','Cegado por humo','#c8c8c8'],['slow2','Muy lento','#96aaff'],['zslow','Mordido (lento)','#8fd07a'],['invc','Controles invertidos','#c08cff'],['blur','Visión borrosa','#c8dcff'],['bleed','Sangrando','#ff5a5a'],['lift','Elevado','#b8a0ff'],['disg','Disfrazado','#e0e0e0'],['cmode','Modo clon','#9a9aff'],['spin','Carga de martillo','#ff6a50'],['track','Rastreando','#ff4040'],['plane','Otro plano','#bcc8ff'],['fix','Fijación','#ff6a40'],['boostP','Veloz','#9aff6a'],['slowS','Lento','#7aa0ff']];
  return L.filter(([k])=>f[k]>0).map(([k,n,c])=>`<span style="border-color:${c};color:${c}">${n} ${f[k].toFixed(1)}s</span>`).join('')}
 function cbInitSolo(pc){const P=G.P,K=G.K;P.role='s';K.role='k';P.fx={};K.fx={};P.cd=[0,0,0,0,0];K.cd=[0,0,0,0,0];P.charges=3;P.id=me.id;K.id='K';G.cfx=[];G.cfxId=0;G.vl=[];G.ktr=[];G.W=cbSoloW();cbHudInit(pc.id)}
@@ -4165,7 +4179,7 @@ document.getElementById('rpActions').addEventListener('click',e=>{
  const b=e.target.closest('[data-rpa]');if(!b||!isRoleplay())return;
  const i=+b.dataset.rpa,P=G.P,ch=P.ch.id,skills=SK[ch]||[],spec=skills[i];if(!spec)return;
  const anims={val:['heavy','guard'],dan:['heavy','throw'],zoe:['dash','throw'],sam:['heal','dash'],abr:['guard','guard'],nic:['aura','place'],lia:['throw','vanish'],tom:['slide','throw'],cos:['reach','rush'],enl:['wail','vanish'],pay:['slam','spin'],doc:['inject','place'],wlf:['howl','lunge']};
- P.act={id:'rp-'+Date.now(),s:0,k:(anims[ch]||['basic'])[i]||'basic',t:0,dur:Math.max(.6,spec.dur||1),dx:P.dx||1,dy:P.dy||0,lock:0,done:{}};
+ P.act={id:'rp-'+Date.now(),s:0,k:(anims[ch]||['basic'])[i]||'basic',t:0,dur:Math.max(.6,spec.dur||1),dx:cbAbilityAim(P).dx,dy:cbAbilityAim(P).dy,lock:0,done:{}};
  P.cd=(P.cd||[]).map(()=>0);if(srvMode())send({t:'rpAction',c:ch,i});
  gmsg('ROLEPLAY · '+spec.n);
 });
@@ -4260,7 +4274,7 @@ rpUiObserver.observe(document.getElementById('hud'),{attributes:true,attributeFi
  },true);
  function runAction(i){if(!isRP())return;const P=G.P,ch=P.ch.id,skills=SK[ch]||[],spec=skills[i];if(!spec)return;
    const anims={val:['heavy','guard'],dan:['heavy','throw'],zoe:['dash','throw'],sam:['heal','dash'],abr:['guard','guard'],nic:['aura','place'],lia:['throw','vanish'],tom:['slide','throw'],cos:['reach','rush'],enl:['wail','vanish'],pay:['slam','spin'],doc:['inject','place'],wlf:['howl','lunge']};
-   P.act={id:'rp-'+Date.now(),s:0,k:(anims[ch]||['basic'])[i]||'basic',t:0,dur:Math.max(.6,spec.dur||1),dx:P.dx||1,dy:P.dy||0,lock:0,done:{}};P.cd=(P.cd||[]).map(()=>0);
+   P.act={id:'rp-'+Date.now(),s:0,k:(anims[ch]||['basic'])[i]||'basic',t:0,dur:Math.max(.6,spec.dur||1),dx:cbAbilityAim(P).dx,dy:cbAbilityAim(P).dy,lock:0,done:{}};P.cd=(P.cd||[]).map(()=>0);
    if(srvMode())send({t:'rpAction',c:ch,i});gmsg('ROLEPLAY · '+spec.n);
  }
  // Alias para accesibilidad y click de ratón/teclado.
