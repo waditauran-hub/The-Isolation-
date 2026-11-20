@@ -423,6 +423,97 @@ body.resultsOn #back{display:none!important}
 #rpTP{position:fixed;right:max(10px,env(safe-area-inset-right));top:48%;z-index:29;display:none;min-width:48px;width:52px;height:48px;padding:0;border:2px solid #a5d5ff;background:#071a2aee;color:#fff;border-radius:12px;font-weight:1000;box-shadow:0 0 14px #3c9cff88}
 #rpTP.on{display:block}#rpInfo{position:fixed;right:max(10px,env(safe-area-inset-right));top:calc(48% + 58px);z-index:29;display:none;min-width:48px;width:52px;height:42px;padding:0;border:1px solid #d5a7ff;background:#1b0d2bee;color:#fff;border-radius:10px;font-size:11px;font-weight:900}#rpInfo.on{display:block}#rpTPModal{position:fixed;inset:0;z-index:35;display:none;align-items:center;justify-content:center;background:#000b;padding:14px}#rpTPModal.on{display:flex}#rpTPModal .card{max-width:330px}#rpTPList{display:grid;gap:7px}#rpTPList button{width:100%}
 @media(max-width:600px){#rpActions{bottom:calc(env(safe-area-inset-bottom,0px) + 6px);max-width:96vw;gap:4px}#rpActions button{padding:7px 6px;font-size:10px}#rpTP{top:42%;right:max(5px,env(safe-area-inset-right));width:44px;height:44px}}
+
+/* ===== MODO HORIZONTAL TÁCTIL (solo teléfonos y tablets) ===== */
+.landscape-toggle,#landscapeNotice{display:none}
+body.mobile-device #landscapeToggle{position:fixed;display:flex;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:30;align-items:center;gap:9px;padding:7px 11px;border:1px solid #75404a;border-radius:999px;background:rgba(12,8,14,.88);color:#f8edf0;font:700 11px system-ui;letter-spacing:.03em;box-shadow:0 3px 14px #0008;cursor:pointer;touch-action:manipulation}
+#landscapeModeInput{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.landscape-switch{width:35px;height:20px;flex:none;border-radius:20px;background:#51464d;position:relative;transition:background .2s}
+.landscape-switch:after{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;border-radius:50%;background:#fff;transition:transform .2s}
+#landscapeModeInput:checked+.landscape-switch{background:#bd3349;box-shadow:0 0 9px #e33a5b77}
+#landscapeModeInput:checked+.landscape-switch:after{transform:translateX(15px)}
+#landscapeModeInput:focus-visible+.landscape-switch{outline:2px solid white;outline-offset:3px}
+body.mobile-device.force-landscape #landscapeNotice{display:block;position:fixed;z-index:100;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);width:max-content;max-width:90vw;padding:8px 13px;border:1px solid #9a5360;border-radius:20px;background:#100a12eF;color:#fff;font:700 11px system-ui;text-align:center;box-shadow:0 4px 16px #0009;pointer-events:none}
+/* La clase solo se aplica a equipos táctiles móviles/tablets; PC conserva el HUD original. */
+body.mobile-device.landscape-ui #joy{width:90px;height:90px;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+body.mobile-device.landscape-ui #joy i{width:39px;height:39px}
+body.mobile-device.landscape-ui #tbs button{width:48px;height:48px;font-size:11px}
+body.mobile-device.landscape-ui #tbs .sk{width:48px!important;height:48px!important}
+body.mobile-device.landscape-ui #tbs .sk .ic{margin-top:-5px}
+body.mobile-device.landscape-ui #tbs .sk .cdt{font-size:14px}
+body.mobile-device.landscape-ui #tbs .sk .lb{bottom:5px;font-size:6px}
+body.mobile-device.landscape-ui #bJump{right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+body.mobile-device.landscape-ui #bRun{right:66px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+body.mobile-device.landscape-ui #bAct{right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 66px);width:48px!important;height:48px!important}
+body.mobile-device.landscape-ui #bAb{right:66px;bottom:calc(env(safe-area-inset-bottom,0px) + 66px)}
+body.mobile-device.landscape-ui #bS1{right:66px;bottom:calc(env(safe-area-inset-bottom,0px) + 66px)}
+body.mobile-device.landscape-ui #bS2{right:120px;bottom:calc(env(safe-area-inset-bottom,0px) + 66px)}
+body.mobile-device.landscape-ui #bS3{right:120px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+body.mobile-device.landscape-ui #bS4{right:174px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px)}
+body.mobile-device.landscape-ui #bS5{right:174px;bottom:calc(env(safe-area-inset-bottom,0px) + 66px)}
+body.mobile-device.landscape-ui.k5 #tbs .sk{width:46px!important;height:46px!important}
+body.mobile-device.landscape-ui #hbar{left:35px;right:6px;top:calc(env(safe-area-inset-top,0px) + 4px);padding:4px 7px;font-size:10px;line-height:1.25;white-space:normal;max-height:38px;overflow:hidden}
+body.mobile-device.landscape-ui #hX{top:calc(env(safe-area-inset-top,0px) + 4px);left:3px;padding:3px 7px;font-size:10px}
+body.mobile-device.landscape-ui #hmis{top:calc(env(safe-area-inset-top,0px) + 43px);right:6px;max-width:180px;max-height:22vh;overflow:auto;padding:6px 8px;font-size:11px;line-height:1.3}
+body.mobile-device.landscape-ui #hint{top:calc(env(safe-area-inset-top,0px) + 42px);left:7px;max-width:27vw;font-size:10px}
+body.mobile-device.landscape-ui #missionRadar{top:calc(env(safe-area-inset-top,0px) + 42px);font-size:10px;padding:4px 8px;max-width:45vw;overflow:hidden;text-overflow:ellipsis}
+body.mobile-device.landscape-ui #cbStat{bottom:calc(env(safe-area-inset-bottom,0px) + 4px);max-width:30vw;gap:3px}
+body.mobile-device.landscape-ui #cbStat span{font-size:8px;padding:1px 5px}
+body.mobile-device.landscape-ui #gChat{left:calc(8px + env(safe-area-inset-left,0px));top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 112px);width:200px;max-width:30vw;font-size:10px}
+body.mobile-device.landscape-ui #gChatLog{max-height:22vh;padding:3px 5px}
+body.mobile-device.landscape-ui #gChatIn{height:21px;font-size:10px}
+body.mobile-device.landscape-ui #gChatSend{height:21px;width:23px}
+body.mobile-device.landscape-ui #gChatTog{width:23px;height:21px;font-size:12px}
+body.mobile-device.landscape-ui #mg{padding:5px}
+body.mobile-device.landscape-ui #mg .card{width:min(96vw,900px);max-height:94dvh;padding:8px 12px;overflow:auto}
+body.mobile-device.landscape-ui #mg .mg-board{min-height:70px;margin:6px auto;gap:6px}
+body.mobile-device.landscape-ui #mg button{min-height:38px;min-width:42px}
+body.mobile-device.landscape-ui #mg .mg-memory button{height:44px}
+body.mobile-device.landscape-ui #pnl{height:min(72dvh,330px);max-height:72dvh}
+body.mobile-device.landscape-ui #playi.result-screen{max-height:94dvh;padding:8px}
+body.mobile-device.landscape-ui #lobbyBoards{top:calc(env(safe-area-inset-top,0px) + 42px);right:8px;width:min(42vw,300px);max-height:42dvh;grid-template-columns:1fr 1fr;gap:5px}
+body.mobile-device.landscape-ui .lboard{min-height:0;max-height:40dvh;padding:5px}
+body.mobile-device.landscape-ui .lboard h3{font-size:10px;margin-bottom:3px}
+body.mobile-device.landscape-ui #mapPreview{height:42px}
+body.mobile-device.landscape-ui #lobbyToolbar{left:calc(7px + env(safe-area-inset-left,0px));top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);transform:none;gap:5px}
+body.mobile-device.landscape-ui .lobby-icon{width:34px;height:34px;font-size:18px}
+body.mobile-device.landscape-ui #lobbyStatus{top:calc(env(safe-area-inset-top,0px) + 5px);font-size:clamp(11px,2.2vw,18px)}
+body.mobile-device.landscape-ui #charInfo .ci-box{width:min(94vw,900px);max-height:92dvh;overflow:auto}
+body.mobile-device.landscape-ui #charInfo .ci-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:65dvh;overflow:auto}
+body.mobile-device.landscape-ui #lobbyModal .modalbox{width:min(88vw,700px);max-height:90dvh;overflow:auto;padding:10px}
+body.mobile-device.landscape-ui #sel{padding:5px 10px;gap:3px;overflow-y:auto}
+body.mobile-device.landscape-ui .ds-title{margin:0;gap:3px}
+body.mobile-device.landscape-ui .ds-title h2{font-size:clamp(20px,4vh,32px)}
+body.mobile-device.landscape-ui .ds-title span{font-size:clamp(14px,3vh,22px)}
+body.mobile-device.landscape-ui .ds-sub{font-size:9px;margin:0}
+body.mobile-device.landscape-ui .ds-center{width:min(84vw,720px);margin:2px auto;grid-template-columns:minmax(0,1fr) minmax(58px,14vh) minmax(0,1fr);gap:5px}
+body.mobile-device.landscape-ui .ds-time{font-size:clamp(22px,6vh,38px)}
+body.mobile-device.landscape-ui .ds-killer canvas{max-height:15vh}
+body.mobile-device.landscape-ui .ds-roster{width:90vw;max-height:17vh;margin:1px auto;gap:4px;overflow:auto}
+body.mobile-device.landscape-ui .ds-slot{width:clamp(42px,7vw,68px);font-size:8px}
+body.mobile-device.landscape-ui .ds-slot .ds-face{height:clamp(34px,9vh,50px)}
+body.mobile-device.landscape-ui .ds-picker{width:90vw;max-width:900px;margin:1px auto;gap:4px}
+body.mobile-device.landscape-ui .ds-picker #pvc{width:clamp(38px,7vh,56px);height:clamp(44px,10vh,64px)}
+body.mobile-device.landscape-ui .ds-info h2{font-size:12px}
+body.mobile-device.landscape-ui .ds-info .mut{font-size:9px}
+body.mobile-device.landscape-ui .ds-info .btn{font-size:10px;padding:5px}
+body.mobile-device.landscape-ui #rpActions{bottom:calc(env(safe-area-inset-bottom,0px) + 5px);gap:4px;max-width:75vw}
+body.mobile-device.landscape-ui #rpActions button{padding:5px 6px;font-size:9px}
+body.mobile-device.landscape-ui #rpTP{top:auto;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 66px);width:46px;height:46px}
+@media (max-height:420px){body.mobile-device.landscape-ui #hbar{max-height:32px;font-size:9px}body.mobile-device.landscape-ui #hmis{max-height:20vh}body.mobile-device.landscape-ui #gChat{bottom:calc(env(safe-area-inset-bottom,0px) + 100px)}body.mobile-device.landscape-ui #joy{width:82px;height:82px}body.mobile-device.landscape-ui #joy i{width:34px;height:34px}}
+
+
+</style>
+
+<style id="landscape-final-overrides">
+body.mobile-device.landscape-ui #emoteMobileBtn{right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 120px);top:auto;width:44px;height:44px;min-width:44px;font-size:19px;border-radius:50%}
+body.mobile-device.landscape-ui #emoteWheelContainer{width:min(48vh,230px);height:min(48vh,230px)}
+body.mobile-device.landscape-ui #emoteWheelContainer button{width:clamp(48px,10vh,64px);height:clamp(42px,9vh,56px);font-size:8px}
+body.mobile-device.landscape-ui #emoteWheelContainer button .ei{font-size:16px}
+body.mobile-device.landscape-ui #charInfo .ci-box{width:min(94vw,900px);max-height:92dvh}
+body.mobile-device.landscape-ui #ciList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;max-height:65dvh;overflow:auto}
+body.mobile-device.landscape-ui .shop{grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:6px}
+body.mobile-device.landscape-ui .shop>div{padding:6px;font-size:11px}
 </style>
 </head><body>
 <canvas id="cv"></canvas>
@@ -438,7 +529,7 @@ body.resultsOn #back{display:none!important}
 <div id="cdn"></div>
 
 <section class="sc on" id="title"><div class="menu-visual"><h1 class="ti-title">THE ISOLATION</h1><p class="ti-sub"><span class="ti-w">Corre, escóndete,</span> <span class="ti-r">SOBREVIVE.</span></p>
-<button class="btn" data-go="modes">PLAY</button><button class="btn" data-go="settings">CONFIGURACIÓN</button><span class="mut" id="netst"></span></div></section>
+<button class="btn" data-go="modes">PLAY</button><button class="btn" data-go="settings">CONFIGURACIÓN</button><span class="mut" id="netst"></span></div><label id="landscapeToggle" class="landscape-toggle" for="landscapeModeInput"><input id="landscapeModeInput" type="checkbox"><span class="landscape-switch" aria-hidden="true"></span><span>Modo horizontal</span></label><div id="landscapeNotice" role="status" aria-live="polite">Girá el dispositivo para jugar en horizontal</div></section>
 
 <section class="sc" id="settings"><div class="card"><h2>Configuración</h2><div class="set" id="setf"></div><p class="mut">Los cambios se guardan y se aplican al instante. La calidad gráfica ajusta resolución y cantidad de partículas.</p></div>
 <div class="card"><h2>Servidor multijugador</h2><input type="text" id="srv" placeholder="Conexión automática al servidor publicado" autocomplete="off"><div class="row" style="margin:8px 0"><button class="btn sm" id="srvOk">GUARDAR Y CONECTAR</button><button class="btn sm" id="srvDl">DESCARGAR server.js</button></div><div class="mut" id="srvSt"></div><p class="mut" style="user-select:text">El servidor se conecta automáticamente al mismo dominio cuando publicas el juego. Para una dirección externa personalizada, pégala aquí usando <b>wss://</b> si el sitio usa HTTPS.</p></div><button class="btn" data-back>VOLVER</button></section>
@@ -4508,4 +4599,62 @@ if(!window.__emoteRenderHook){const scripts=[...document.scripts];window.__emote
 })();
 </script>
 
+<script>
+/* ===== Preferencia Modo horizontal: móviles y tablets ===== */
+(()=>{
+ const body=document.body, input=document.getElementById('landscapeModeInput'), notice=document.getElementById('landscapeNotice');
+ if(!input)return;
+ const ua=navigator.userAgent||'';
+ const ipadOS=/Macintosh/.test(ua)&&navigator.maxTouchPoints>1;
+ const mobileUA=/Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua)||ipadOS;
+ const touchDevice=(navigator.maxTouchPoints||0)>0 || matchMedia('(pointer: coarse)').matches;
+ const screenSized=matchMedia('(max-width: 1400px)').matches || /Android|iPhone|iPad|iPod/i.test(ua) || ipadOS;
+ const desktopOS=/Windows NT|Macintosh|X11|Linux x86_64/i.test(ua)&&!ipadOS;
+ const isMobileOrTablet=touchDevice&&screenSized&&(!desktopOS||mobileUA);
+ if(!isMobileOrTablet){body.classList.remove('mobile-device','landscape-ui','force-landscape');return;}
+ body.classList.add('mobile-device');
+ let enabled=false,requestedFullscreen=false;
+ try{enabled=localStorage.getItem('theIsolationLandscapeMode')==='1'}catch(_){enabled=false}
+ input.checked=enabled;
+ const isActuallyLandscape=()=>{
+   const so=screen.orientation&&screen.orientation.type;
+   if(so)return so.startsWith('landscape');
+   return window.innerWidth>window.innerHeight;
+ };
+ const refresh=()=>{
+   const landscape=isActuallyLandscape();
+   body.classList.toggle('landscape-ui',enabled||landscape);
+   body.classList.toggle('force-landscape',enabled&&!landscape);
+   if(notice)notice.textContent='Girá el dispositivo para jugar en horizontal';
+   if(window.size)try{window.size()}catch(_){}
+   window.dispatchEvent(new Event('resize'));
+ };
+ async function activate(){
+   // Estas llamadas se ejecutan directamente desde el gesto del usuario; iOS puede rechazarlas.
+   const root=document.documentElement;
+   if(!document.fullscreenElement&&root.requestFullscreen){
+     try{await root.requestFullscreen();requestedFullscreen=true}catch(_){requestedFullscreen=false}
+   }
+   if(screen.orientation&&typeof screen.orientation.lock==='function'){
+     try{await screen.orientation.lock('landscape')}catch(_){/* Safari/iOS suele bloquearlo: se muestra aviso para girar manualmente. */}
+   }
+   refresh();
+ }
+ async function deactivate(){
+   try{if(screen.orientation&&typeof screen.orientation.unlock==='function')screen.orientation.unlock()}catch(_){}
+   if(requestedFullscreen&&document.fullscreenElement&&document.exitFullscreen){try{await document.exitFullscreen()}catch(_){}}
+   requestedFullscreen=false;refresh();
+ }
+ input.addEventListener('change',()=>{
+   enabled=!!input.checked;
+   try{localStorage.setItem('theIsolationLandscapeMode',enabled?'1':'0')}catch(_){}
+   if(enabled)activate();else deactivate();
+ });
+ window.addEventListener('resize',refresh,{passive:true});
+ window.addEventListener('orientationchange',()=>setTimeout(refresh,120),{passive:true});
+ if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',refresh);
+ document.addEventListener('fullscreenchange',refresh);
+ refresh();
+})();
+</script>
 </body></html>
