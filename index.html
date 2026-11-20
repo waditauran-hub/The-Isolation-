@@ -655,6 +655,11 @@ function mkTrack(el,base,name){const T={el,base,ok:!!el,unlocked:false,on:false,
  T.unlock=()=>{if(T.unlocked||!T.el)return;T.unlocked=true;T.el.muted=true;const p=T.el.play();const done=()=>{if(!T.on){T.el.pause();T.el.currentTime=0}T.el.muted=false};if(p&&p.then)p.then(done).catch(()=>{T.el.muted=false;T.unlocked=false});else done()};
  return T}
 const chaseMusic=document.getElementById('chaseMusic'),escapeMusic=document.getElementById('escapeMusic');
+const chaseAudio=new Audio('./audio/chase.mp3');chaseAudio.preload='none';chaseAudio.loop=true;chaseAudio.volume=.45;
+let isChaseAudioPlaying=false;
+function startChaseAudio(){if(isChaseAudioPlaying||LMS.on||LMS.fading||G?.lms)return;isChaseAudioPlaying=true;mapMusicPauseForChase();chaseAudio.volume=set.musOn===false?0:.45;const p=chaseAudio.play();if(p&&p.catch)p.catch(err=>{console.warn('No se pudo iniciar chase.mp3:',err);isChaseAudioPlaying=false})}
+function stopChaseAudio(){if(!isChaseAudioPlaying)return;isChaseAudioPlaying=false;chaseAudio.pause();try{chaseAudio.currentTime=0}catch(_){}mapMusicResume()}
+
 const CHASE=mkTrack(chaseMusic,MIX.chase,'chase'),ESCM=mkTrack(escapeMusic,MIX.escape,'escape');
 /* ===== MÚSICA AMBIENTAL MP3 POR ESCENA/MAPA (lazy loading, un solo reproductor) =====
    Se reutiliza un único HTMLAudioElement para que nunca se superpongan pistas ambientales.
@@ -706,7 +711,7 @@ function mapMusicSceneUpdate(){
 function chaseVol(){return CHASE.target()}
 function chasePlay(){CHASE.play()}
 function chaseStop(){CHASE.stop()}
-function chaseMusicVol(){CHASE.sync();ESCM.sync();if(MAPM.el&&!MAPM.el.paused)MAPM.el.volume=mapMusicVolume();if(typeof LMS!=='undefined'&&LMS.on&&LMS.cur&&!LMS.fading)LMS.cur.volume=lmsVol()}
+function chaseMusicVol(){CHASE.sync();ESCM.sync();if(isChaseAudioPlaying)chaseAudio.volume=set.musOn===false?0:.45;if(MAPM.el&&!MAPM.el.paused)MAPM.el.volume=mapMusicVolume();if(typeof LMS!=='undefined'&&LMS.on&&LMS.cur&&!LMS.fading)LMS.cur.volume=lmsVol()}
 /* ===== RESULTADOS: audio/resultados.mp3 en 6 segmentos (una sola vez, sin bucle) =====
    1 Final Bueno · 2 Final Normal · 3 Final Dúo · 4 Final Solitario · 5 Final Malo · 6 El asesino se ha ido */
 const RES_SEG={1:[0,22],2:[23,45],3:[46,69],4:[70,91],5:[92,111],6:[112,null]};
@@ -1554,6 +1559,17 @@ function drawChar(c,ch,x,y,s,t,skin,look,move=0,running=false,fear=0,jumping=0,a
  if(losePose&&!an.down){crouch+=14;headT+=.38;sa=.3;fa=.4;sb=.25;fb=.35;lean+=.25}
  if(an.lit)lit=true;
  if(an.front){hipNear=.05;hipFar=-.05;kNear=kFar=0;sa=.08+Math.sin(rt*1.3)*.03;fa=sa+.14;sb=-.08-Math.sin(rt*1.3)*.03;fb=sb-.14;lean=0;showItem=null;hang=null;if(an.laugh){headT=Math.sin(rt*22)*.06;sa=.45;fa=1.4;sb=-.45;fb=-1.4}if(fear>.5){sa=.5;fa=2.5;sb=.5;fb=2.5}if(an.react==='abr'){const w2=Math.sin(rt*13);sa=2.5+w2*.3;fa=sa+.45;sb=-2.5+w2*.3;fb=sb-.45}}
+ // Pose procedural de emotes: modifica el esqueleto antes de dibujar las piezas.
+ const EM=an.emote,et=EM?Math.max(0,EM.timer||0):0,ew=Math.sin(et*6.2),ep=Math.abs(Math.sin(et*10));
+ if(EM&&!ak&&!mv&&!jumping&&!stunned&&!boxed&&!an.down){
+  showItem=null;hang=null;
+  if(EM.id==='wave'){sa=-2.75+Math.sin(et*7)*.22;fa=sa-.12;sb=.08;fb=.22;lean=Math.sin(et*2)*.035;headT=Math.sin(et*3)*.035;bob=0}
+  else if(EM.id==='sit'){crouch+=18;hipNear=.82+Math.sin(et*2)*.04;hipFar=.78;kNear=.12;kFar=.10;sa=.35;fa=.75;sb=.4;fb=.8;lean=.08+Math.sin(et*2.2)*.035;headT=Math.sin(et*2.2)*.06;bob=0}
+  else if(EM.id==='dance'){lean=Math.sin(et*5)*.18;hipNear=.24+ew*.18;hipFar=-.24-ew*.18;kNear=.18+ep*.42;kFar=.18+(1-ep)*.42;sa=-2.15+ew*.65;fa=sa-.15;sb=1.65-ew*.65;fb=sb+.15;headT=Math.sin(et*5+1)*.1;bob=-Math.abs(Math.sin(et*10))*4}
+  else if(EM.id==='taunt'){sa=1.25;fa=1.45;sb=-1.25;fb=-1.45;lean=-.16+Math.sin(et*8)*.035;headT=-.12+Math.sin(et*9)*.06;bob=-Math.abs(Math.sin(et*11))*5;crouch+=Math.abs(Math.sin(et*11))*2}
+  else if(EM.id==='spooky'){const cross=Math.sin(et*4.8);sa=-.9+cross*.95;fa=sa-.15;sb=.9-cross*.95;fb=sb+.15;lean=Math.sin(et*4.8)*.14;hipNear=.25+Math.sin(et*4.8+Math.PI)*.25;hipFar=-hipNear;kNear=.25+Math.abs(Math.sin(et*4.8))*.25;kFar=.25+Math.abs(Math.sin(et*4.8+Math.PI))*.25;headT=Math.sin(et*4.8+1)*.12;bob=-Math.abs(Math.sin(et*4.8))*2}
+  else if(EM.id==='victory'){sa=-2.8+Math.sin(et*3)*.08;fa=sa-.12;sb=-2.8-Math.sin(et*3)*.08;fb=sb-.12;lean=-.12;headT=-.12;bob=-Math.abs(Math.sin(et*6))*2}
+ }
  // esqueleto
  const hipY=-69+crouch+bob,tl=44,sx=Math.sin(lean)*tl,sy=hipY-Math.cos(lean)*tl-br*.5;
  const ws=16.4*bk,ww=(fem?11.6:13.4)*bk,wh=(fem?14.6:14)*bk,hx0=0,hy0=hipY;
@@ -2917,7 +2933,7 @@ function drawGame(){const M=G.M,P=G.P,K=G.K;
  G.bodies.forEach(b=>ent(cx,b.ch,b.x,b.y,1,0,.85,Math.PI/2,b.sk));
  G.gas.forEach(g=>{const r=g.t*0+62;const gr=cx.createRadialGradient(g.x,g.y,5,g.x,g.y,r);gr.addColorStop(0,'rgba(120,200,60,.45)');gr.addColorStop(1,'rgba(120,200,60,0)');cx.fillStyle=gr;cx.fillRect(g.x-r,g.y-r,r*2,r*2)});cbDrawGround(cx,now);
  if(G.on)drawOnEnts(now);else{const list=[];if(!P.hid||P.dead)list.push(['p',P.y]);list.push(['k',K.y]);list.sort((a,b)=>a[1]-b[1]);
- list.forEach(([w])=>{if(w=='p'){const f=P.dead?Math.min(1,1-Math.max(0,P.deadT)/1.3):cbDown(P)?.92:0,al=P.resp>0?.4+Math.sin(now/60)*.3:P.inv>0?.55+Math.sin(now/90)*.25:(P.fx&&P.fx.invis>0)?.3:1;const near=Math.max(0,1-Math.hypot(K.x-P.x,K.y-P.y)/300),phase=now/1000*(P.animRun?2.8:P.animMove?1.8:.45);ent(cx,P.ch,P.x,P.y,P.face,phase,al,f*Math.PI/2||cbTilt(P,P.face),prof.eq,P.animMove||0,P.animRun||false,near,P.animJump||0,prof.looks[P.ch.id],cbAnOf(P));cbDrawActorFx(cx,P,now);if(P.hop>0){cx.fillStyle='rgba(255,255,255,.2)';cx.beginPath();cx.ellipse(P.x,P.y+2,16,5,0,0,7);cx.fill()}}
+ list.forEach(([w])=>{if(w=='p'){const f=P.dead?Math.min(1,1-Math.max(0,P.deadT)/1.3):cbDown(P)?.92:0,al=P.resp>0?.4+Math.sin(now/60)*.3:P.inv>0?.55+Math.sin(now/90)*.25:(P.fx&&P.fx.invis>0)?.3:1;const near=Math.max(0,1-Math.hypot(K.x-P.x,K.y-P.y)/300),phase=now/1000*(P.animRun?2.8:P.animMove?1.8:.45);ent(cx,P.ch,P.x,P.y,P.face,phase,al,f*Math.PI/2||cbTilt(P,P.face),prof.eq,P.animMove||0,P.animRun||false,near,P.animJump||0,prof.looks[P.ch.id],Object.assign(cbAnOf(P)||{},{emote:P.emote?{id:P.emote.id,timer:(now-P.emote.at)/1000}:null}));cbDrawActorFx(cx,P,now);if(P.hop>0){cx.fillStyle='rgba(255,255,255,.2)';cx.beginPath();cx.ellipse(P.x,P.y+2,16,5,0,0,7);cx.fill()}}
   else{const kMove=Math.hypot(K.x-(K._px??K.x),K.y-(K._py??K.y))>.2;K._px=K.x;K._py=K.y;const kf2=cbF(K);if(K.ch.id==='pay'&&kMove&&!(kf2.spin>0))cbSpark(K,K.x,K.y,K.face2);ent(cx,kf2.disg>0?G.P.ch:K.ch,K.x,K.y+cbLiftY(K),K.face2,now/1000*(K.sprinting?2.6:1.7),(kf2.vanish>0||kf2.invis>0)?0:kf2.plane>0?.16:(K.invis?.14:1),0,'basic',kMove?1:0,!!K.sprinting,0,0,prof.looks[K.ch.id],cbAnOf(K));if(!(cbF(K).vanish>0))cbDrawActorFx(cx,K,now)}});}
  if(!G.on&&G.K.attackT>0){cx.save();cx.strokeStyle='rgba(255,95,70,.9)';cx.lineWidth=5;cx.beginPath();cx.arc(G.K.x,G.K.y-18,34,now/1000,now/1000+1.8);cx.stroke();cx.restore()}
  if(!G.on&&G.K.stunUntil>Date.now()){const q=.65+.35*Math.sin(now/75);cx.save();cx.strokeStyle=`rgba(255,225,90,${q})`;cx.lineWidth=5;cx.beginPath();cx.arc(G.K.x,G.K.y-28,28+Math.sin(now/90)*4,0,Math.PI*2);cx.stroke();cx.font='bold 24px system-ui';cx.textAlign='center';cx.fillStyle='#ffe36b';cx.fillText('✦ ✦ ✦',G.K.x,G.K.y-58);cx.restore()}
@@ -2932,8 +2948,8 @@ function drawGame(){const M=G.M,P=G.P,K=G.K;
  else if(P.dead){cx.fillStyle='rgba(120,0,10,.25)';cx.fillRect(0,0,W,H)}}
 function drawOnEnts(now){const P=G.P,L=[],vk=P.role=='k',t=now/1000;
  if(!(P.hid||P.spec||P.esc)||P.dead)L.push({y:P.y,me:1});for(const id in G.ents){const o=G.ents[id];if(o.d||o.e||o.sp||o.h)continue;L.push({y:o.y,o,id})}
- L.sort((a,b)=>a.y-b.y);L.forEach(q=>{if(q.me){const f=P.dead?Math.min(1,1-Math.max(0,P.deadT)/1.3):cbDown(P)?.92:0,al=(P.fx&&P.fx.vanish>0)?.25:(P.fx&&P.fx.invis>0)?.3:P.resp>0?.4+Math.sin(now/60)*.3:P.inv?.55+Math.sin(now/90)*.25:P.ivT>0?.35:1;const killers=Object.values(G.ents).filter(o=>o.k&&!o.d&&!o.sp),kd=killers.length?Math.min(...killers.map(o=>Math.hypot(o.x-P.x,o.y-P.y))):9999,near=Math.max(0,1-kd/300),phase=t*(P.animRun?2.8:P.animMove?1.8:.45);if(P.role==='k'&&P.tt){const dx=P.tt[0]-P.x,dy=P.tt[1]-P.y,dd=Math.hypot(dx,dy)||1,ux=dx/dd,uy=dy/dd;cx.save();cx.strokeStyle='rgba(255,225,40,.95)';cx.fillStyle='rgba(255,225,40,.95)';cx.lineWidth=5;cx.beginPath();cx.moveTo(P.x+ux*30,P.y+uy*30);cx.lineTo(P.x+ux*78,P.y+uy*78);cx.stroke();cx.beginPath();cx.moveTo(P.x+ux*96,P.y+uy*96);cx.lineTo(P.x+ux*74-uy*12,P.y+uy*74+ux*12);cx.lineTo(P.x+ux*74+uy*12,P.y+uy*74-ux*12);cx.fill();cx.restore()}if(P.role==='k'&&cbId(P)==='pay'&&P.animMove&&!(P.fx&&P.fx.spin>0))cbSpark(P,P.x,P.y,P.face);const pal=P.role==='k'&&P.fx&&P.fx.plane>0?.45:al;ent(cx,P.role==='k'&&P.fx&&P.fx.disg>0&&P.dg?byId(P.dg[1]):P.ch,P.x,P.y+cbLiftY(P),P.face,phase,pal,f*Math.PI/2||cbTilt(P,P.face),prof.eq,P.animMove||0,P.animRun||false,near,P.animJump||0,prof.looks[P.ch.id],cbAnOf(P));cbDrawActorFx(cx,P,now);if(P.emote&&window.drawPlayerEmoteFx)drawPlayerEmoteFx(cx,P,now)}
-  else{const o=q.o,al=(o.fx&&(o.fx.vanish>0||o.fx.invis>0))?0:(o.k&&o.fx&&o.fx.plane>0)?.16:o.iv?(vk?.4:.14):o.v?.55:(vk&&o.q&&Math.hypot(o.x-P.x,o.y-P.y)>200?.45:1);const threat=Object.values(G.ents).filter(v=>v.k&&!v.d&&!v.sp),nd=threat.length?Math.min(...threat.map(v=>Math.hypot(v.x-o.x,v.y-o.y))):9999,fr=o.k?0:Math.max(0,1-nd/300);if(o.k&&o.ch&&o.ch.id==='pay'&&o.mv&&al>0&&!(o.fx&&o.fx.spin>0))cbSpark(o,o.x,o.y,o.f);ent(cx,cbDispCh(o),o.x,o.y+cbLiftY(o),o.f||1,t*(o.run?2.8:1.8),al,cbDown(o)?Math.PI/2*.92:cbTilt(o,o.f||1),(R.pl[q.id]&&R.pl[q.id].sk)||'basic',o.mv&&!cbDown(o)?1:0,!!o.run,fr,o.jp||0,(R.pl[q.id]&&R.pl[q.id].looks&&R.pl[q.id].looks[o.ch.id])||null,cbAnOf(o));if(al>0)cbDrawActorFx(cx,o,now);if(o.k&&o.at>0){cx.save();cx.strokeStyle='rgba(255,95,70,.9)';cx.lineWidth=5;cx.beginPath();cx.arc(o.x,o.y-18,34,now/1000,now/1000+1.8);cx.stroke();cx.restore()}if(o.k&&o.st>0){cx.save();cx.strokeStyle='rgba(255,225,90,.9)';cx.lineWidth=4;cx.beginPath();cx.arc(o.x,o.y-28,28+Math.sin(now/80)*4,0,Math.PI*2);cx.stroke();cx.font='bold 22px system-ui';cx.textAlign='center';cx.fillStyle='#ffe36b';cx.fillText('✦ ✦ ✦',o.x,o.y-58);cx.restore()}if(al>.2){cx.font='700 12px system-ui';cx.textAlign='center';cx.strokeStyle='#000';cx.lineWidth=3;const dz=o.k&&o.dg&&o.fx&&o.fx.disg>0&&!vk,nm=dz?(R.pl[o.dg[0]]?R.pl[o.dg[0]].name:''):R.pl[q.id]?R.pl[q.id].name:'';cx.strokeText(nm,o.x,o.y-86);cx.fillStyle=o.k&&!dz?'#ff6a6a':'#fff';cx.fillText(nm,o.x,o.y-86)}}})}
+ L.sort((a,b)=>a.y-b.y);L.forEach(q=>{if(q.me){const f=P.dead?Math.min(1,1-Math.max(0,P.deadT)/1.3):cbDown(P)?.92:0,al=(P.fx&&P.fx.vanish>0)?.25:(P.fx&&P.fx.invis>0)?.3:P.resp>0?.4+Math.sin(now/60)*.3:P.inv?.55+Math.sin(now/90)*.25:P.ivT>0?.35:1;const killers=Object.values(G.ents).filter(o=>o.k&&!o.d&&!o.sp),kd=killers.length?Math.min(...killers.map(o=>Math.hypot(o.x-P.x,o.y-P.y))):9999,near=Math.max(0,1-kd/300),phase=t*(P.animRun?2.8:P.animMove?1.8:.45);if(P.role==='k'&&P.tt){const dx=P.tt[0]-P.x,dy=P.tt[1]-P.y,dd=Math.hypot(dx,dy)||1,ux=dx/dd,uy=dy/dd;cx.save();cx.strokeStyle='rgba(255,225,40,.95)';cx.fillStyle='rgba(255,225,40,.95)';cx.lineWidth=5;cx.beginPath();cx.moveTo(P.x+ux*30,P.y+uy*30);cx.lineTo(P.x+ux*78,P.y+uy*78);cx.stroke();cx.beginPath();cx.moveTo(P.x+ux*96,P.y+uy*96);cx.lineTo(P.x+ux*74-uy*12,P.y+uy*74+ux*12);cx.lineTo(P.x+ux*74+uy*12,P.y+uy*74-ux*12);cx.fill();cx.restore()}if(P.role==='k'&&cbId(P)==='pay'&&P.animMove&&!(P.fx&&P.fx.spin>0))cbSpark(P,P.x,P.y,P.face);const pal=P.role==='k'&&P.fx&&P.fx.plane>0?.45:al;ent(cx,P.role==='k'&&P.fx&&P.fx.disg>0&&P.dg?byId(P.dg[1]):P.ch,P.x,P.y+cbLiftY(P),P.face,phase,pal,f*Math.PI/2||cbTilt(P,P.face),prof.eq,P.animMove||0,P.animRun||false,near,P.animJump||0,prof.looks[P.ch.id],Object.assign(cbAnOf(P)||{},{emote:P.emote?{id:P.emote.id,timer:(now-P.emote.at)/1000}:null}));cbDrawActorFx(cx,P,now);if(P.emote&&window.drawPlayerEmoteFx)drawPlayerEmoteFx(cx,P,now)}
+  else{const o=q.o,al=(o.fx&&(o.fx.vanish>0||o.fx.invis>0))?0:(o.k&&o.fx&&o.fx.plane>0)?.16:o.iv?(vk?.4:.14):o.v?.55:(vk&&o.q&&Math.hypot(o.x-P.x,o.y-P.y)>200?.45:1);const threat=Object.values(G.ents).filter(v=>v.k&&!v.d&&!v.sp),nd=threat.length?Math.min(...threat.map(v=>Math.hypot(v.x-o.x,v.y-o.y))):9999,fr=o.k?0:Math.max(0,1-nd/300);if(o.k&&o.ch&&o.ch.id==='pay'&&o.mv&&al>0&&!(o.fx&&o.fx.spin>0))cbSpark(o,o.x,o.y,o.f);ent(cx,cbDispCh(o),o.x,o.y+cbLiftY(o),o.f||1,t*(o.run?2.8:1.8),al,cbDown(o)?Math.PI/2*.92:cbTilt(o,o.f||1),(R.pl[q.id]&&R.pl[q.id].sk)||'basic',o.mv&&!cbDown(o)?1:0,!!o.run,fr,o.jp||0,(R.pl[q.id]&&R.pl[q.id].looks&&R.pl[q.id].looks[o.ch.id])||null,Object.assign(cbAnOf(o)||{},{emote:o.emote?{id:o.emote.id,timer:(now-o.emote.at)/1000}:null}));if(al>0)cbDrawActorFx(cx,o,now);if(o.emote&&al>0&&window.drawPlayerEmoteFx)drawPlayerEmoteFx(cx,o,now);if(o.k&&o.at>0){cx.save();cx.strokeStyle='rgba(255,95,70,.9)';cx.lineWidth=5;cx.beginPath();cx.arc(o.x,o.y-18,34,now/1000,now/1000+1.8);cx.stroke();cx.restore()}if(o.k&&o.st>0){cx.save();cx.strokeStyle='rgba(255,225,90,.9)';cx.lineWidth=4;cx.beginPath();cx.arc(o.x,o.y-28,28+Math.sin(now/80)*4,0,Math.PI*2);cx.stroke();cx.font='bold 22px system-ui';cx.textAlign='center';cx.fillStyle='#ffe36b';cx.fillText('✦ ✦ ✦',o.x,o.y-58);cx.restore()}if(al>.2){cx.font='700 12px system-ui';cx.textAlign='center';cx.strokeStyle='#000';cx.lineWidth=3;const dz=o.k&&o.dg&&o.fx&&o.fx.disg>0&&!vk,nm=dz?(R.pl[o.dg[0]]?R.pl[o.dg[0]].name:''):R.pl[q.id]?R.pl[q.id].name:'';cx.strokeText(nm,o.x,o.y-86);cx.fillStyle=o.k&&!dz?'#ff6a6a':'#fff';cx.fillText(nm,o.x,o.y-86)}}})}
 function hudUpdate(){const k=false,P=G.P,rem=Math.max(0,Math.ceil((G.end-Date.now())/1000));
  updateSpectatorUI();$('#hbar').innerHTML=`${G.huntOn?'<b style="color:#ff2020;letter-spacing:.1em">ESCONDETE</b>':`<b style="color:${rem<=80?'#52ff70': '#fff'}">⏱ ${rem}</b>`} · ${healthMarkup(P.hp)} · ${staminaMarkup(P.sta)}${R?.solo&&set.botMode&&G.K?` · BOT ${staminaMarkup(G.K.sta)}`:''} · ${G.blackout?'<b style="color:#ff6666">· APAGÓN</b>':''} ${G.open?'<span class="ok">PORTAL VERDE ABIERTO</span>':'<span style="color:#ff9a9a">PORTAL CERRADO · ABRE EN 80</span>'}${G.K.st=='chase'?' · <b style="color:#ff4a4a">¡TE PERSIGUEN!</b>':''}`;
  const radar=$('#missionRadar');if(P.role!=='k'&&!P.dead&&!P.esc){const nearest=G.M.miss.filter(m=>!m.done).map(m=>({m,d:Math.hypot(m.x-P.x,m.y-P.y),a:Math.atan2(m.y-P.y,m.x-P.x)})).sort((a,b)=>a.d-b.d)[0];if(nearest&&nearest.d<900){const dirs=['→','↘','↓','↙','←','↖','↑','↗'];radar.style.display='block';radar.classList.remove('dim');radar.textContent='✦ MISIÓN CERCA · '+Math.round(nearest.d)+' px · '+dirs[Math.round(((nearest.a+Math.PI*2)%(Math.PI*2))/(Math.PI/4))%8]}else{radar.style.display='block';radar.classList.add('dim');radar.textContent='⌖ BUSCANDO MISIONES...'}}else radar.style.display='none';$('#hmis').innerHTML=`<b>${G.M.theme=='factory'?'FÁBRICA':G.M.theme=='arcade'?'SALÓN DE JUEGOS':'BOSQUE'}</b><br><span style="color:#e2b84a">PRINCIPALES ${G.M.miss.filter(m=>m.main!==false&&m.done).length}/${G.M.miss.filter(m=>m.main!==false).length}</span><br><span style="color:#c78cff">SECUNDARIAS ${G.M.miss.filter(m=>m.main===false&&m.done).length}/${G.M.miss.filter(m=>m.main===false).length}</span><br>`+G.M.miss.map(m=>`<div>${m.done?'<span class="ok">✔</span>':m.state==='in_progress'?'<span style="color:#55d9ff">◉</span>':'○'} <span style="color:${m.main===false?'#c78cff':'#e2b84a'}">${m.main===false?'◆':'★'}</span> ${m.n} ${m.done?'':'· '+(m.progress||0)+'/5'}</div>`).join('')+`<div class="mut">Tú: ${esc(me.name)} · ${P.ch.n}</div>`;
@@ -4260,19 +4276,21 @@ rpUiObserver.observe(document.getElementById('hud'),{attributes:true,attributeFi
 
 <style id="emote-wheel-style">
 .shop-main-tabs button{touch-action:manipulation}
-.emote-wheel-backdrop{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;touch-action:manipulation}
+.emote-wheel-backdrop{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.42);display:none;align-items:center;justify-content:center;touch-action:manipulation}
 .emote-wheel-backdrop.on{display:flex}
-.emote-wheel{position:relative;width:min(88vw,440px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#21131b 0 27%,#09070b 28% 100%);border:3px solid #a92335;box-shadow:0 0 0 5px #26070c,0 0 45px #d21d3580;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:12%;gap:5px;touch-action:manipulation}
-.emote-wheel:before{content:'EMOTES';position:absolute;inset:40%;display:grid;place-items:center;border-radius:50%;border:1px solid #a92335;color:#f4d9df;font:900 clamp(10px,2.5vw,15px) system-ui;letter-spacing:.12em;background:#10090e}
-.emote-wheel button{position:relative;z-index:1;min-width:0;min-height:0;border:1px solid #8b3441;border-radius:12px;background:linear-gradient(145deg,#21131b,#09070b);color:#fff;font:800 clamp(9px,2.3vw,12px) system-ui;padding:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;touch-action:manipulation}
-.emote-wheel button.locked{filter:grayscale(1);opacity:.6}.emote-wheel button .ei{font-size:clamp(18px,5vw,27px)}.emote-wheel button:active{background:#641724}
-.emote-wheel button:nth-child(1){grid-area:1/2}.emote-wheel button:nth-child(2){grid-area:1/3}.emote-wheel button:nth-child(3){grid-area:2/3}.emote-wheel button:nth-child(4){grid-area:3/3}.emote-wheel button:nth-child(5){grid-area:3/2}.emote-wheel button:nth-child(6){grid-area:3/1}
-#emoteMobileBtn{position:fixed;right:16px;top:calc(env(safe-area-inset-top,0px) + 72px);z-index:5100;display:none;min-width:46px;width:48px;height:46px;padding:0;border:2px solid #a92335;border-radius:12px;background:#10090eee;color:white;font-size:22px;touch-action:manipulation}
-#emoteMobileBtn .keyhint{font-size:9px;display:block;line-height:1}body.pc #emoteMobileBtn{display:block}body.mob #emoteMobileBtn{display:block}body.mob #emoteMobileBtn .keyhint{display:none}
-#emoteMobileBtn{right:14px;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 170px)}
+#emoteWheelContainer{position:relative;width:min(75vw,300px);height:min(75vw,300px);border-radius:50%;flex:0 0 auto;background:radial-gradient(circle,#24121b 0 25%,rgba(8,6,10,.97) 26% 100%);border:3px solid #c12a40;box-shadow:0 0 0 5px #26070c,0 0 42px #d21d3580;touch-action:manipulation;overflow:visible}
+#emoteWheelContainer:before{content:'EMOTES';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:27%;height:27%;display:grid;place-items:center;border-radius:50%;border:1px solid #c12a40;color:#f4d9df;font:900 clamp(10px,2.5vw,14px) system-ui;letter-spacing:.1em;background:#10090e;box-shadow:0 0 18px #a9233555;pointer-events:none}
+#emoteWheelContainer button{position:absolute;left:50%;top:50%;width:clamp(68px,24vw,84px);height:clamp(58px,20vw,68px);box-sizing:border-box;z-index:2;border:1px solid #a94352;border-radius:12px;background:linear-gradient(145deg,#29151e,#09070b);color:#fff;font:800 clamp(8px,2.4vw,10px) system-ui;padding:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;touch-action:manipulation;transform:translate(-50%,-50%);text-align:center;line-height:1.1;overflow:hidden}
+#emoteWheelContainer button.locked{filter:grayscale(1);opacity:.58}
+#emoteWheelContainer button .ei{font-size:clamp(17px,5vw,23px);line-height:1}
+#emoteWheelContainer button small{font-size:8px}
+#emoteWheelContainer button:active{background:#641724}
+#emoteMobileBtn{position:fixed;right:14px;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 170px);z-index:5100;display:none;min-width:46px;width:48px;height:46px;padding:0;border:2px solid #a92335;border-radius:12px;background:#10090eee;color:white;font-size:22px;touch-action:manipulation}
+#emoteMobileBtn .keyhint{font-size:9px;display:block;line-height:1}body.pc #emoteMobileBtn,body.mob #emoteMobileBtn{display:block}body.mob #emoteMobileBtn .keyhint{display:none}
+@media(max-width:360px){#emoteWheelContainer button{width:66px;height:56px;font-size:8px}#emoteWheelContainer button .ei{font-size:17px}}
 .emote-card .shopk-p{margin:3px}.emote-card .btn{touch-action:manipulation}
 </style>
-<div id="emoteWheelBackdrop" class="emote-wheel-backdrop" aria-hidden="true"><div class="emote-wheel" id="emoteWheel" role="dialog" aria-label="Rueda de emotes"></div></div>
+<div id="emoteWheelBackdrop" class="emote-wheel-backdrop" aria-hidden="true"><div id="emoteWheelContainer" role="dialog" aria-label="Rueda de emotes"></div></div>
 <button id="emoteMobileBtn" type="button" aria-label="Abrir rueda de emotes">🎭<span class="keyhint">[X]</span></button>
 <script>
 (()=>{
@@ -4291,13 +4309,13 @@ function owns(id){return prof.emoteOwn.includes(id)}
 function saveEmotes(){save('sv_prof',prof);coinsUi()}
 function isTyping(){return typingNow()||['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable}
 function activePlayer(){return G&&G.P&&!G.over&&['lobby','play','shop'].includes(scene)}
-function stopEmote(reason='cancel'){const P=G&&G.P;if(!P||!P.emote)return;P.emote=null;if(srvMode())send({t:'playerEmote',e:'',c:P.ch?.id||R?.picks?.[me.id]||'val'});}
+function stopEmote(reason='cancel'){const P=G&&G.P;if(!P||(!P.emote&&!P.currentEmote))return;P.emote=null;P.currentEmote=null;P.emoteTimer=0;if(srvMode())send({t:'playerEmote',e:'',c:P.ch?.id||R?.picks?.[me.id]||'val'});}
 function playEmote(id){const e=EMOTE_BY[id],P=G&&G.P;if(!e||!owns(id)||!P||!activePlayer())return;
- P.emote={id,at:performance.now(),lastX:P.x,lastY:P.y,hp:P.hp};
+ P.currentEmote=id;P.emoteTimer=0;P.emote={id,at:performance.now(),lastX:P.x,lastY:P.y,hp:P.hp};
  if(srvMode())send({t:'playerEmote',e:id,c:P.ch?.id||R?.picks?.[me.id]||'val'});
  closeWheel();if(typeof gmsg==='function')gmsg('EMOTE · '+e.n);
 }
-function openWheel(){if(!activePlayer())return;const root=document.getElementById('emoteWheel'),back=document.getElementById('emoteWheelBackdrop');root.innerHTML=EMOTES.map(e=>{const own=owns(e.id);return `<button type="button" data-emote="${e.id}" class="${own?'':'locked'}" aria-label="${esc(e.n)}"><span class="ei">${e.ic}</span><span>${esc(e.n)}</span><small>${own?'':'🔒 '+e.p+' 🪙'}</small></button>`}).join('');back.classList.add('on');back.setAttribute('aria-hidden','false')}
+function openWheel(){if(!activePlayer())return;const root=document.getElementById('emoteWheelContainer'),back=document.getElementById('emoteWheelBackdrop');root.innerHTML=EMOTES.map(e=>{const own=owns(e.id);return `<button type="button" data-emote="${e.id}" class="${own?'':'locked'}" aria-label="${esc(e.n)}"><span class="ei">${e.ic}</span><span>${esc(e.n)}</span><small>${own?'':'🔒 '+e.p+' 🪙'}</small></button>`}).join('');back.classList.add('on');back.setAttribute('aria-hidden','false');requestAnimationFrame(()=>{const radius=root.clientWidth*.34,total=EMOTES.length;[...root.querySelectorAll('[data-emote]')].forEach((b,index)=>{const angle=(index/total)*Math.PI*2-Math.PI/2;b.style.left=`calc(50% + ${Math.cos(angle)*radius}px)`;b.style.top=`calc(50% + ${Math.sin(angle)*radius}px)`;b.style.transform='translate(-50%, -50%)'})})}
 function closeWheel(){const b=document.getElementById('emoteWheelBackdrop');b.classList.remove('on');b.setAttribute('aria-hidden','true')}
 const back=document.getElementById('emoteWheelBackdrop');
 back.addEventListener('pointerdown',e=>{if(e.target===back)closeWheel()});
@@ -4305,14 +4323,15 @@ back.addEventListener('click',e=>{if(e.target===back)closeWheel();const b=e.targ
 document.getElementById('emoteMobileBtn').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();openWheel()});
 document.addEventListener('keydown',e=>{if(isTyping())return;if(e.key.toLowerCase()==='x'){e.preventDefault();back.classList.contains('on')?closeWheel():openWheel()}else if(e.key==='Escape'&&back.classList.contains('on'))closeWheel()});
 // Cancelar automáticamente al moverse, saltar, usar una habilidad o recibir daño.
-setInterval(()=>{const P=G&&G.P;if(!P?.emote)return;const m=P.emote,dx=(P.x||0)-(m.lastX||0),dy=(P.y||0)-(m.lastY||0);if(Math.hypot(dx,dy)>2.5||P.animMove||P.animRun||P.hop>0||P.act||(m.hp!=null&&P.hp<m.hp)||P.dead||P.spec||P.esc){stopEmote('interrupt');return}m.lastX=P.x;m.lastY=P.y},90);
+setInterval(()=>{const P=G&&G.P;if(!P?.emote)return;const m=P.emote,dx=(P.x||0)-(m.lastX||0),dy=(P.y||0)-(m.lastY||0);if(Math.hypot(dx,dy)>1.2||Math.abs(P.vx||0)>.01||Math.abs(P.vy||0)>.01||P.animMove||P.animRun||P.hop>0||P.act||(P.attackFx||0)>.02||['dash','burst','rush','wlunge','spin','fly'].some(k=>(P.fx&&P.fx[k]>0))||(m.hp!=null&&P.hp<m.hp)||P.dead||P.spec||P.esc){stopEmote('interrupt');return}m.lastX=P.x;m.lastY=P.y;P.currentEmote=m.id;P.emoteTimer=(performance.now()-m.at)/1000},35);
 // Render decorativo/pose animada del emote del jugador local sobre el personaje.
-window.drawPlayerEmoteFx=function(ctx,P,now){const m=P&&P.emote;if(!m)return;const t=(now-m.at)/1000,id=m.id;ctx.save();ctx.translate(P.x,P.y-48);ctx.textAlign='center';ctx.font='900 20px system-ui';
- if(id==='wave'){ctx.fillStyle='#ffe58a';ctx.fillText('✦  👋  ✦',0,-20+Math.sin(t*7)*3)}
- else if(id==='sit'){ctx.fillStyle='#b9d8ff';ctx.fillText('☁',0,-18);}
- else if(id==='dance'||id==='spooky'){ctx.rotate(Math.sin(t*7)*.12);ctx.fillStyle='#ffb3d0';ctx.fillText(id==='dance'?'♪ ♫ ♪':'☠',0,-20+Math.abs(Math.sin(t*8))*5)}
- else if(id==='taunt'){ctx.fillStyle='#ff9d9d';ctx.fillText('HA!',0,-20+Math.abs(Math.sin(t*9))*5)}
- else if(id==='victory'){ctx.fillStyle='#ffd85a';ctx.shadowColor='#ffd85a';ctx.shadowBlur=12;ctx.fillText('✦  ★  ✦',0,-20+Math.sin(t*5)*4)}
+window.drawPlayerEmoteFx=function(ctx,P,now){const m=P&&P.emote;if(!m)return;const t=(now-m.at)/1000,id=m.id;ctx.save();ctx.translate(P.x,P.y-62);ctx.textAlign='center';ctx.font='900 20px system-ui';
+ if(id==='wave'){ctx.fillStyle='#ffe58a';ctx.fillText('✦ 👋 ✦',0,-4+Math.sin(t*7)*3)}
+ else if(id==='sit'){ctx.fillStyle='#b9d8ff';ctx.fillText('☁',0,-4)}
+ else if(id==='dance'){ctx.fillStyle='#ffb3d0';ctx.fillText('♪ ♫ ♪',0,-4+Math.abs(Math.sin(t*8))*5)}
+ else if(id==='taunt'){ctx.fillStyle='#ff9d9d';ctx.fillText('HA!',0,-4+Math.abs(Math.sin(t*9))*5)}
+ else if(id==='spooky'){ctx.fillStyle='#e3d7ff';ctx.fillText('☠',0,-4+Math.sin(t*7)*3)}
+ else if(id==='victory'){ctx.fillStyle='#ffd85a';ctx.shadowColor='#ffd85a';ctx.shadowBlur=12;ctx.fillText('✦ ★ ✦',0,-4+Math.sin(t*5)*4);for(let i=0;i<6;i++){const a=t*2+i*Math.PI/3,r=28+Math.sin(t*6+i)*5;ctx.fillStyle='#ffd85a';ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r-4,2,0,Math.PI*2);ctx.fill()}}
  ctx.restore();};
 // Añadir el efecto al render local sin modificar la lógica de combate.
 const drawLocalEmoteBase=drawChar;
@@ -4327,7 +4346,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-emote-buy]
 // Captura Sí/No antes de los controladores de skins ya existentes.
 document.addEventListener('click',e=>{if(!shopPending?.startsWith('emote:'))return;if(e.target.closest('#shopNo')||e.target.id==='shopM'){shopClose();emotePending=null;e.stopImmediatePropagation();return}if(e.target.closest('#shopYes')){const id=shopPending.slice(6),item=EMOTE_BY[id];if(item&&!owns(id)){if(prof.coins<item.p){shopClose();shopWarn()}else{prof.coins-=item.p;prof.emoteOwn.push(id);coinsSave();saveEmotes()}}shopPending=null;emotePending=null;shopClose();shopKind='e';renderShop();e.stopImmediatePropagation()}},true);
 // Evento de red: el servidor reenvía playerEmote a la sala completa.
-if(typeof attachSrvRoom==='function'){const attachEmoteBase=attachSrvRoom;attachSrvRoom=function(r){attachEmoteBase(r);r.on('playerEmote',m=>{const d=m.data;if(!d||!G)return;if(d.id===me.id){if(!d.emote)G.P.emote=null;return}const p=G.ents&&G.ents[d.id];if(p)p.emote=d.emote?{id:d.emote,at:performance.now()}:null})}}
+if(typeof attachSrvRoom==='function'){const attachEmoteBase=attachSrvRoom;attachSrvRoom=function(r){attachEmoteBase(r);r.on('playerEmote',m=>{const d=m.data;if(!d||!G)return;if(d.id===me.id){if(!d.emote){G.P.emote=null;G.P.currentEmote=null;G.P.emoteTimer=0}return}const p=G.ents&&G.ents[d.id];if(p){p.emote=d.emote?{id:d.emote,at:performance.now()}:null;p.currentEmote=d.emote||null;p.emoteTimer=0}})}}
 // Audio: un reproductor BGM bajo demanda para lobby/selección/mapa y uno SFX de eventos prioritarios.
 const AudioManager=window.AudioManager={bgmAudio:new Audio(),sfxAudio:new Audio(),bgmSrc:'',sfxSrc:'',unlocked:false};
 AudioManager.bgmAudio.preload='none';AudioManager.bgmAudio.loop=true;AudioManager.bgmAudio.volume=0;
@@ -4349,8 +4368,8 @@ mapMusicStop=function(reset=true){AudioManager.stopBGM();MAPM.pausedForChase=fal
 mapMusicPauseForChase=function(){AudioManager.bgmAudio.pause();MAPM.pausedForChase=true};
 mapMusicResume=function(){if(!MAPM.src||set.musOn===false||!AudioManager.unlocked)return;AudioManager.bgmAudio.volume=mapMusicVolume();const p=AudioManager.bgmAudio.play();if(p&&p.catch)p.catch(err=>console.warn('Audio pendiente:',err));MAPM.pausedForChase=false};
 // Rutas ./audio/ también para pistas de eventos legacy.
-const origChasePlay=chasePlay;chasePlay=function(){if(AudioManager.unlocked)AudioManager.playSFX('chase.mp3',MIX.chase);else origChasePlay()};
-const origChaseStop=chaseStop;chaseStop=function(){if(AudioManager.sfxSrc.endsWith('/chase.mp3')){AudioManager.sfxAudio.pause();try{AudioManager.sfxAudio.currentTime=0}catch(_){}}origChaseStop()};
+chasePlay=function(){startChaseAudio()};
+chaseStop=function(){stopChaseAudio()};
 const origESCMPlay=ESCM.play;ESCM.play=function(){if(AudioManager.unlocked)AudioManager.playSFX('escape.mp3',MIX.escape);else origESCMPlay()};const origESCMStop=ESCM.stop;ESCM.stop=function(){if(AudioManager.sfxSrc.endsWith('/escape.mp3')){AudioManager.sfxAudio.pause();try{AudioManager.sfxAudio.currentTime=0}catch(_){}}origESCMStop()};
 // Dibujo del emote del jugador local en la pasada de render existente.
 const renderEmoteNeedle='cbDrawActorFx(cx,P,now)';
