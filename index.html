@@ -657,8 +657,22 @@ function mkTrack(el,base,name){const T={el,base,ok:!!el,unlocked:false,on:false,
 const chaseMusic=document.getElementById('chaseMusic'),escapeMusic=document.getElementById('escapeMusic');
 const chaseAudio=new Audio('./audio/chase.mp3');chaseAudio.preload='none';chaseAudio.loop=true;chaseAudio.volume=.45;
 let isChaseAudioPlaying=false;
-function startChaseAudio(){if(isChaseAudioPlaying||LMS.on||LMS.fading||G?.lms)return;isChaseAudioPlaying=true;mapMusicPauseForChase();chaseAudio.volume=set.musOn===false?0:.45;const p=chaseAudio.play();if(p&&p.catch)p.catch(err=>{console.warn('No se pudo iniciar chase.mp3:',err);isChaseAudioPlaying=false})}
-function stopChaseAudio(){if(!isChaseAudioPlaying)return;isChaseAudioPlaying=false;chaseAudio.pause();try{chaseAudio.currentTime=0}catch(_){}mapMusicResume()}
+const escapeAudio=new Audio('./audio/escape.mp3');escapeAudio.preload='none';escapeAudio.loop=true;escapeAudio.volume=0;
+let isEscapeAudioPlaying=false;
+function stopEscapeAudio(){isEscapeAudioPlaying=false;try{escapeAudio.pause();escapeAudio.currentTime=0}catch(_){}escapeAudio.volume=0}
+function resetEscapeAudio(){stopEscapeAudio()}
+function startEscapeAudio(){
+ if(isEscapeAudioPlaying||!G||G.over||LMS.on||LMS.fading||G.lms)return;
+ isEscapeAudioPlaying=true;
+ mapMusicStop(true);
+ isChaseAudioPlaying=false;chaseAudio.pause();try{chaseAudio.currentTime=0}catch(_){}
+ CHASE.stop();
+ escapeAudio.volume=mixVol(MIX.escape);
+ const p=escapeAudio.play();
+ if(p&&p.catch)p.catch(err=>{console.warn('No se pudo iniciar escape.mp3:',err)});
+}
+function startChaseAudio(){if(isChaseAudioPlaying||isEscapeAudioPlaying||LMS.on||LMS.fading||G?.lms)return;isChaseAudioPlaying=true;mapMusicPauseForChase();chaseAudio.volume=mixVol(MIX.chase);const p=chaseAudio.play();if(p&&p.catch)p.catch(err=>{console.warn('No se pudo iniciar chase.mp3:',err);isChaseAudioPlaying=false})}
+function stopChaseAudio(){if(!isChaseAudioPlaying)return;isChaseAudioPlaying=false;chaseAudio.pause();try{chaseAudio.currentTime=0}catch(_){}if(!isEscapeAudioPlaying)mapMusicResume()}
 
 const CHASE=mkTrack(chaseMusic,MIX.chase,'chase'),ESCM=mkTrack(escapeMusic,MIX.escape,'escape');
 /* ===== MÚSICA AMBIENTAL MP3 POR ESCENA/MAPA (lazy loading, un solo reproductor) =====
@@ -688,19 +702,19 @@ function mapKey(){
 }
 function mapMusicSceneUpdate(){
  const a=MAPM.el;
- if(set.musOn===false){mapMusicStop(true);chaseStop();ESCM.stop();return}
+ if(set.musOn===false){resetEscapeAudio();mapMusicStop(true);chaseStop();ESCM.stop();return}
  if(typeof CINE!=='undefined'&&CINE.on){mapMusicStop(true);chaseStop();ESCM.stop();return}
  if(scene==='lobby'||scene==='shop'){
-  chaseStop();ESCM.stop();mapMusicSet('lobby','audio/lobby.mp3',.35);return;
+  resetEscapeAudio();chaseStop();ESCM.stop();mapMusicSet('lobby','audio/lobby.mp3',.35);return;
  }
  if(scene==='sel'){
-  chaseStop();ESCM.stop();const k=mapKey(),src=k==='salon'?'audio/select_salon.mp3':k==='fabrica'?'audio/select_fabrica.mp3':'audio/select_bosque.mp3';mapMusicSet('select',src,.40);return;
+  resetEscapeAudio();chaseStop();ESCM.stop();const k=mapKey(),src=k==='salon'?'audio/select_salon.mp3':k==='fabrica'?'audio/select_fabrica.mp3':'audio/select_bosque.mp3';mapMusicSet('select',src,.40);return;
  }
  if(scene!=='play'||!G||G.over||G.watchLobby){
-  mapMusicStop(true);chaseStop();ESCM.stop();return;
+  resetEscapeAudio();mapMusicStop(true);chaseStop();ESCM.stop();return;
  }
  if(LMS.on||LMS.fading||G.lms){mapMusicStop(true);chaseStop();ESCM.stop();return}
- if(G.open){mapMusicStop(true);chaseStop();ESCM.play();return}
+ if(G.open){mapMusicStop(true);startEscapeAudio();return}
  ESCM.stop();
  const P=G.P,danger=P&&P.role==='k'?musDanger():dangerInfo()>0;
  if(danger&&CHASE.ok){mapMusicPauseForChase();chasePlay();return}
@@ -711,25 +725,26 @@ function mapMusicSceneUpdate(){
 function chaseVol(){return CHASE.target()}
 function chasePlay(){CHASE.play()}
 function chaseStop(){CHASE.stop()}
-function chaseMusicVol(){CHASE.sync();ESCM.sync();if(isChaseAudioPlaying)chaseAudio.volume=set.musOn===false?0:.45;if(MAPM.el&&!MAPM.el.paused)MAPM.el.volume=mapMusicVolume();if(typeof LMS!=='undefined'&&LMS.on&&LMS.cur&&!LMS.fading)LMS.cur.volume=lmsVol()}
+function chaseMusicVol(){CHASE.sync();ESCM.sync();if(isEscapeAudioPlaying)escapeAudio.volume=mixVol(MIX.escape);if(isChaseAudioPlaying)chaseAudio.volume=mixVol(MIX.chase);if(MAPM.el&&!MAPM.el.paused)MAPM.el.volume=mapMusicVolume();if(typeof LMS!=='undefined'&&LMS.on&&LMS.cur&&!LMS.fading)LMS.cur.volume=lmsVol()}
 /* ===== RESULTADOS: audio/resultados.mp3 en 6 segmentos (una sola vez, sin bucle) =====
    1 Final Bueno · 2 Final Normal · 3 Final Dúo · 4 Final Solitario · 5 Final Malo · 6 El asesino se ha ido */
 const RES_SEG={1:[0,22],2:[23,45],3:[46,69],4:[70,91],5:[92,111],6:[112,null]};
 const RES_NAME={1:'FINAL BUENO',2:'FINAL NORMAL',3:'FINAL DÚO',4:'FINAL SOLITARIO',5:'FINAL MALO',6:'EL ASESINO SE HA IDO'};
 const resultsMusic=document.getElementById('resultsMusic');
+let isResultsAudioPlaying=false;
 const RESM={el:resultsMusic,ok:!!resultsMusic,mp3On:false,vr:0,end:0,iv:null,safe:null,done:true,unlocked:false};
 if(resultsMusic)resultsMusic.addEventListener('error',()=>{RESM.ok=false;RESM.mp3On=false;console.warn('No se encontró audio/resultados.mp3')});
 function resSegLen(vr){const sg=RES_SEG[vr]||RES_SEG[5];let e=sg[1];if(e==null){const d=RESM.el&&isFinite(RESM.el.duration)&&RESM.el.duration>sg[0]+1?RESM.el.duration:132;e=d}return Math.max(5,e-sg[0])}
 function endVariant(rows){if(G&&G.kl)return 6;rows=rows||[];const N=rows.length,E=rows.filter(r=>r.escaped).length;if(E===0)return 5;if(E===N&&N>=2)return 1;if(E===1)return 4;if(E===2)return 3;return 2}
 function resStart(vr){resStop();RESM.vr=vr;RESM.done=false;const sg=RES_SEG[vr]||RES_SEG[5],el=RESM.el;RESM.end=sg[1];
- const go=()=>{if(RESM.done||!el)return;try{el.currentTime=sg[0]}catch(e){}el.volume=mixVol(.5);const p=el.play();RESM.mp3On=true;if(p&&p.catch)p.catch(()=>{RESM.mp3On=false})};
+ const go=()=>{if(RESM.done||isResultsAudioPlaying||!el)return;isResultsAudioPlaying=true;try{el.currentTime=sg[0]}catch(e){}el.volume=mixVol(.5);const p=el.play();RESM.mp3On=true;if(p&&p.catch)p.catch(()=>{RESM.mp3On=false;isResultsAudioPlaying=false})};
  if(el&&RESM.ok){if(el.readyState>=1)go();else{el.addEventListener('loadedmetadata',go,{once:true});try{el.load()}catch(e){}}}
  RESM.t0=performance.now();
  RESM.iv=setInterval(()=>{if(RESM.done)return;const e=RESM.end==null?(RESM.el&&isFinite(RESM.el.duration)?RESM.el.duration-.05:1e9):RESM.end;if(RESM.mp3On&&el&&!el.paused){el.volume=mixVol(.5);if(el.currentTime>=e||el.ended)resEnd()}},100);
  if(el)el.addEventListener('ended',()=>{if(!RESM.done)resEnd()},{once:true});
  // respaldo: si el audio no existe o está bloqueado, la pantalla dura lo mismo que el segmento
  RESM.safe=setTimeout(()=>{if(!RESM.done)resEnd()},(resSegLen(vr)+1.2)*1000)}
-function resStop(){clearInterval(RESM.iv);clearTimeout(RESM.safe);RESM.iv=RESM.safe=null;RESM.done=true;RESM.mp3On=false;if(RESM.el){try{RESM.el.pause()}catch(e){}}}
+function resStop(){isResultsAudioPlaying=false;clearInterval(RESM.iv);clearTimeout(RESM.safe);RESM.iv=RESM.safe=null;RESM.done=true;RESM.mp3On=false;if(RESM.el){try{RESM.el.pause()}catch(e){}}}
 function resEnd(){if(RESM.done)return;resStop();if(!G)return;G.resDone=1;
  if(G.hostGone){blackThen(()=>exit('El asesino (anfitrión) se fue. La sala se cerró.'));return}
  if(typeof srvMode==='function'&&srvMode()){if(isHost)setTimeout(()=>{if(G&&G.over&&scene==='play'&&!BLK.busy)srvEmit('adm',{a:'lobby'})},6000);return}
@@ -749,6 +764,7 @@ function dangerVigUpdate(dt){if(!VIG.el)VIG.el=document.getElementById('dangerVi
  const lvl=!on?0:k>.66?3:k>.33?2:1;if(lvl!==VIG.lvl){VIG.lvl=lvl;el.className='lv'+lvl}}
 /* ===== LAST MAN STANDING: canción propia por personaje, reloj = duración de la canción ===== */
 const LMS_T={val:{f:'roccocho',d:233,o:199},dan:{f:'lauty',d:247,o:172},zoe:{f:'florchu',d:201,o:142},sam:{f:'guady',d:211,o:140},abr:{f:'maitenita',d:92,o:73},nic:{f:'angieta',d:224,o:176},lia:{f:'tommy',d:186,o:160},tom:{f:'facuchi',d:91,o:60}};
+let isLmsAudioPlaying=false;
 const LMS={on:false,fading:false,ch:null,audio:{},cur:null,fadeT:null,bannerT:null};
 function lmsAudio(id){const t=LMS_T[id];if(!t)return null;if(!LMS.audio[id]){const a=new Audio('audio/lms_'+t.f+'.mp3');a.preload='auto';a.loop=false;LMS.audio[id]=a}return LMS.audio[id]}
 function lmsVol(){return mixVol(MIX.lms)}
@@ -756,13 +772,13 @@ function lmsUnlock(){if(lmsUnlock.done)return;lmsUnlock.done=true;Object.keys(LM
 addEventListener('pointerdown',lmsUnlock,{passive:true});addEventListener('touchstart',lmsUnlock,{passive:true});addEventListener('click',lmsUnlock,{passive:true});
 function lmsBanner(id){const b=document.getElementById('lmsBanner');if(!b)return;const k=document.getElementById('lmsPor');try{portrait(k.getContext('2d'),byId(id),k.width,k.height,'basic',null,{front:1,bust:1,noBlink:1})}catch(e){}
  b.classList.remove('on');void b.offsetWidth;b.classList.add('on');clearTimeout(LMS.bannerT);LMS.bannerT=setTimeout(()=>b.classList.remove('on'),3900)}
-function lmsStart(id,elapsed){if(!LMS_T[id])return;if(LMS.on&&LMS.ch===id)return;clearInterval(LMS.fadeT);LMS.on=true;LMS.fading=false;LMS.ch=id;chaseStop();
+function lmsStart(id,elapsed){if(!LMS_T[id])return;if(LMS.on&&LMS.ch===id&&isLmsAudioPlaying)return;stopEscapeAudio();clearInterval(LMS.fadeT);isLmsAudioPlaying=true;LMS.on=true;LMS.fading=false;LMS.ch=id;chaseStop();
  const a=lmsAudio(id);Object.values(LMS.audio).forEach(x=>{if(x!==a){x.pause();try{x.currentTime=0}catch(e){}}});LMS.cur=a;a.muted=false;a.volume=lmsVol();
  const seek=()=>{try{a.currentTime=Math.min(LMS_T[id].d,Math.max(0,elapsed||0))}catch(e){}};if(a.readyState>=1)seek();else a.addEventListener('loadedmetadata',seek,{once:true});
- const p=a.play();if(p&&p.catch)p.catch(()=>{});lmsBanner(id)}
+ const p=a.play();if(p&&p.catch)p.catch(()=>{if(LMS.cur===a)isLmsAudioPlaying=false});lmsBanner(id)}
 function lmsFade(sec){const a=LMS.cur;LMS.on=false;if(!a){LMS.ch=null;return}LMS.fading=true;clearInterval(LMS.fadeT);const v0=a.volume,t0=performance.now(),ms=(sec==null?4.5:sec)*1000;
- LMS.fadeT=setInterval(()=>{const k=Math.min(1,(performance.now()-t0)/ms);a.volume=Math.max(0,v0*(1-k));if(k>=1){clearInterval(LMS.fadeT);a.pause();try{a.currentTime=0}catch(e){}a.volume=lmsVol();if(LMS.cur===a)LMS.cur=null;LMS.fading=false;LMS.ch=null}},50)}
-function lmsReset(){clearInterval(LMS.fadeT);Object.values(LMS.audio).forEach(x=>{x.pause();try{x.currentTime=0}catch(e){}});LMS.on=false;LMS.fading=false;LMS.cur=null;LMS.ch=null;const b=document.getElementById('lmsBanner');if(b)b.classList.remove('on')}
+ LMS.fadeT=setInterval(()=>{const k=Math.min(1,(performance.now()-t0)/ms);a.volume=Math.max(0,v0*(1-k));if(k>=1){clearInterval(LMS.fadeT);a.pause();try{a.currentTime=0}catch(e){}a.volume=lmsVol();if(LMS.cur===a)LMS.cur=null;isLmsAudioPlaying=false;LMS.fading=false;LMS.ch=null}},50)}
+function lmsReset(){isLmsAudioPlaying=false;clearInterval(LMS.fadeT);Object.values(LMS.audio).forEach(x=>{x.pause();try{x.currentTime=0}catch(e){}});LMS.on=false;LMS.fading=false;LMS.cur=null;LMS.ch=null;const b=document.getElementById('lmsBanner');if(b)b.classList.remove('on')}
 function musicUpdate(dt){
  // Las pistas de Lobby, Data Select y mapas son MP3 reales y tienen prioridad propia.
  mapMusicSceneUpdate();
@@ -2482,7 +2498,7 @@ function antiStuckKiller(K,dt){
  }
 }
 
-function startGame(){$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';const M=mkBosque(),kc=byId(R.kid),pc=byId(R.picks[me.id]);
+function startGame(){resetEscapeAudio();$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';const M=mkBosque(),kc=byId(R.kid),pc=byId(R.picks[me.id]);
  G={M,t0:Date.now(),end:Date.now()+M.T*1000,open:false,over:null,noise:[],bodies:[],gas:[],stats:{m:0,deaths:0,chases:0,dangerTime:0,damageDealt:0,revives:0,survived:0},mt:0,hudT:0,joy:{x:0,y:0},run:0,pcd:0,ab:0,mg:null,mgT:[],flash:0,hitFx:0,skillFx:null,vfx:null,tension:0,hb:0,amb:5,paid:0,msg:'',msgT:0,shake:0,blackout:false,blackoutNext:Date.now()+35000+Math.random()*15000,blackoutEnd:0,blackoutDisabled:false};
  G.P={x:M.spawn.x,y:M.spawn.y,r:12,vx:0,vy:0,dx:1,dy:0,ch:pc,hp:100,sta:1,exh:false,hitInv:0,hitFx:0,inv:2,slow:0,quiet:0,burst:0,hop:0,hopcd:0,shield:0,hid:false,dead:false,deadT:0,resp:0,st:0,face:1};
  G.K={x:M.killerSpawn?.x||1300,y:M.killerSpawn?.y||1125,r:14,face:0,ch:kc,st:'patrol',wp:null,wait:1,tx:0,ty:0,path:[],pt:0,gx:0,gy:0,lx:0,ly:0,lost:0,sT:0,stun:0,stunUntil:0,stunPrev:'patrol',attackCd:0,attackT:0,sta:1,exh:false,attackTarget:null,furia:0,cd:6,invis:false,face2:1,vx:0,vy:0,revealed:0};
@@ -2491,7 +2507,7 @@ function startGame(){$('#playi').classList.remove('result-screen');$('#playi').d
  gmsg(G.M.theme?'Completa las 3 misiones principales para desbloquear la salida. Las secundarias son opcionales.':'Misión: completa las tareas y escapa cuando se abra la salida')}
 function gmsg(m){G.msg=m;G.msgT=4}
 function noise(x,y,r){if(G.on)return;G.noise.push({x,y,r})}
-function finish(w){if(G.over)return;G.over=w;closeMG();const dur=Math.round((Date.now()-G.t0)/1000),P=G.P;
+function finish(w){if(G.over)return;resetEscapeAudio();G.over=w;closeMG();const dur=Math.round((Date.now()-G.t0)/1000),P=G.P;
  if(w=='s'&&!G.paid){G.paid=1;const c=CONFIG.rewards.win||0;if(c){prof.coins+=c;save('sv_prof',prof)}}
  const survived=Math.floor(G.stats.survived||dur),escaped=w==='s'&&!P.dead;G.resultRows=[{name:me.name||'SUPERVIVIENTE',ch:P.ch,escaped,dead:P.dead,time:survived,danger:Math.floor(G.stats.dangerTime||0),revives:G.stats.revives||0,sk:prof.eq,lk:prof.looks[P.ch.id]}];G.html=`<h2>${w=='s'?'SUPERVIVIENTES · ESCAPARON':'RONDA FINALIZADA · VICTORIA DEL ASESINO'}</h2><div class="result-head"><b>JUGADOR</b><b>TIEMPO SOBREVIVIDO</b><b>TIEMPO EN PELIGRO</b><b>RESCATES</b></div><div class="result-row ${P.dead?'dead':''}"><div class="result-player"><canvas id="res-surv-0" width="90" height="90"></canvas><span class="result-name">${esc(me.name||'SUPERVIVIENTE')}</span></div><span class="${escaped?'escaped':''}">${escaped?'(ESCAPÓ)':survived+' s'}</span><span>${Math.floor(G.stats.dangerTime||0)} s</span><span>${G.stats.revives||0}</span></div><div class="killer-result"><div class="result-player"><canvas id="res-killer" width="90" height="90"></canvas></div><strong>${esc(G.K.ch.n)}</strong><div>DAÑO</div><strong>${Math.floor(G.stats.damageDealt||0)}</strong></div><div class="result-foot">TIEMPO TOTAL ${Math.floor(dur)} s · MISIONES ${G.stats.m}/${G.M.miss.length} · PERSECUCIONES ${G.stats.chases}</div>`;G.endCh=w=='s'?P.ch:G.K.ch}
 function kill(damage){return soloHurt(damage)}
@@ -2981,7 +2997,7 @@ function updateArcadeBlackout(){
  else if(G.blackout&&now>=(G.blackoutEnd||0)){G.blackout=false;G.blackoutNext=now+48000+Math.random()*30000;gmsg('La energía volvió temporalmente.');blip(210,.28,.6)}
 }
 /* ===== PARTIDA EN LÍNEA (el anfitrión es la autoridad; asesino = jugador humano) ===== */
-function startOnline(){$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';const M=mkBosque(),role=R.roles[me.id]=='k'?'k':'s',pc=byId(R.picks[me.id]);
+function startOnline(){resetEscapeAudio();$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';const M=mkBosque(),role=R.roles[me.id]=='k'?'k':'s',pc=byId(R.picks[me.id]);
  G={on:1,host:isHost,M,t0:Date.now(),end:Date.now()+M.T*1000,open:false,over:null,bodies:[],gas:[],ents:{},hb:[],hg:[],stats:{m:0,d:0},joy:{x:0,y:0},run:0,ab:0,mg:null,mgT:[],flash:0,hitFx:0,skillFx:null,vfx:null,shake:0,msg:'',msgT:0,hudT:0,posT:0,stT:0,lastS:Date.now(),lastT:Date.now(),noise:[],tension:0,hb2:0,blackout:false,blackoutNext:Date.now()+35000+Math.random()*15000,blackoutEnd:0,blackoutDisabled:false};
  M.miss.forEach(m=>m.done=0);if(isHost)hostInit();
  const localSpawn=spawnFor(me.id,role);G.P={x:localSpawn.x,y:localSpawn.y,r:12,vx:0,vy:0,dx:1,dy:0,ch:pc,role,hp:100,hitFx:0,inv:1,slow:0,quiet:0,burst:0,hop:0,hopcd:0,hid:false,dead:false,deadT:0,resp:0,st:0,face:1,sta:1,furia:0,ivT:0,rs:0,fo:0,spec:false,esc:false,la:0};G.P.fx={};G.P.cd=[0,0,0,0,0];G.P.charges=3;G.P.id=me.id;G.P.tp=0;G.cfx=[];G.cfxId=0;G.vl=[];G.evq=G.evq||[];G.evId=G.evId||0;G.evSeen=0;G.ktr=[];if(isHost)G.W=cbHostW();cbHudInit(pc.id);
@@ -3031,7 +3047,7 @@ function onState(s){if(!G||!G.on)return;G.lastS=Date.now();if(!G.host){if(s.hn&&
  G.bodies=s.b.map(b=>({x:b[0],y:b[1],ch:byId(b[2]),sk:b[3]}));G.gas=s.g.map(g=>({x:g[0],y:g[1],t:g[2]}));G.stats=s.s;if(!G.host)G.cfx=s.cx||[];if(!G.host&&s.ev){for(const e of s.ev){if(e[0]>G.evSeen){G.evSeen=e[0];cbEvent(e[1],e[2])}}}const seen={};
  s.p.forEach(e=>{seen[e.i]=1;if(e.i==me.id){applyMine(e);return}let o=G.ents[e.i];if(!o)o=G.ents[e.i]={x:e.x,y:e.y};Object.assign(o,{tx:e.x,ty:e.y,f:e.f,st:e.st||0,at:e.at||0,ch:byId(e.c),d:e.d,h:e.h,iv:e.iv,fu:e.fu,k:e.k,e:e.e,sp:e.sp,l:e.l,v:e.v,id:e.i,dangerTime:e.dangerTime,damageDealt:e.damageDealt,rs:e.rs,escapedAt:e.escapedAt,deadAt:e.deadAt,fx:e.fx||{},ac:e.ac,dn:e.dn,dT:e.dT,mv:e.mv,run:e.rn,q:e.q,hu:e.hu,hp:e.l,role:e.k?'k':'s',dg:e.dg||0,cd:e.cd})});
  for(const id in G.ents)if(!seen[id])delete G.ents[id];if(s.vr)G.vr=s.vr;if(s.kl)G.kl=String(s.kl).slice(0,24);if(s.w&&!G.over)finishOn(s.w)}
-function finishOn(w){if(G.over)return;G.over=w;if(LMS.on)lmsFade(4.5);closeMG();const dur=Math.round((Date.now()-G.t0)/1000),P=G.P,players={...(G.ents||{}),...(G.pl||{}),[me.id]:{...(G.pl&&G.pl[me.id]||{}),id:me.id,role:P.role,ch:P.ch,dead:P.dead,esc:P.esc,spec:P.spec,hp:P.hp,dangerTime:P.dangerTime||0,damageDealt:P.damageDealt||0,rs:P.rs||0,sk:prof.eq}};const roleOf=p=>p.role||(p.k?'k':'s'),killer=Object.values(players).find(p=>roleOf(p)==='k')||{ch:P.ch,damageDealt:0};G.resultRows=Object.keys(R.pl).filter(id=>players[id]&&roleOf(players[id])==='s').map(id=>{const p=players[id],elapsed=Math.floor(p.escapedAt?((p.escapedAt-G.t0)/1000):p.deadAt?((p.deadAt-G.t0)/1000):dur);return{name:R.pl[id].name,ch:byId(p.ch&&p.ch.id||p.ch),escaped:!!(p.esc||(G.pl&&G.pl[id]&&G.pl[id].esc)||(id===me.id&&G.P&&G.P.esc)),dead:!!(p.dead||p.d||p.spec)&&!(p.esc||(G.pl&&G.pl[id]&&G.pl[id].esc)),time:elapsed,danger:Math.floor(p.dangerTime||0),revives:p.rs||p.revives||0,sk:p.sk||'basic',lk:(R.pl[id]&&R.pl[id].looks&&R.pl[id].looks[(p.ch&&p.ch.id)||p.ch])||null}});const localK=P.role==='k'?P.ch:byId(killer.ch&&killer.ch.id||killer.ch);G.killerCh=localK;G.endCh=w==='s'?(G.resultRows.find(r=>r.escaped)?.ch||P.ch):localK;const rows=G.resultRows.map((r,i)=>`<div class="result-row ${r.dead?'dead':''}"><div class="result-player"><canvas id="res-surv-${i}" width="90" height="90"></canvas><span class="result-name">${esc(r.name)}</span></div><span class="${r.escaped?'escaped':''}">${r.escaped?'(ESCAPÓ)':r.time+' s'}</span><span>${r.danger} s</span><span>${r.revives}</span></div>`).join('');const killerName=Object.keys(players).find(id=>players[id]&&roleOf(players[id])==='k');if(!G.vr)G.vr=endVariant(G.resultRows);const KL=G.kl;G.html=`<h2>${KL?'EL ASESINO SE HA IDO':w==='s'?'SUPERVIVIENTES · ESCAPARON':'RONDA FINALIZADA · VICTORIA DEL ASESINO'}</h2><div class="res-variant">${RES_NAME[G.vr]||''}</div><div class="result-head"><b>JUGADOR</b><b>TIEMPO SOBREVIVIDO</b><b>TIEMPO EN PELIGRO</b><b>RESCATES</b></div>${rows}<div class="killer-result${KL?' gone':''}"><div class="result-player"><canvas id="res-killer" width="90" height="90"></canvas></div><strong>${esc(KL||(killerName&&R.pl[killerName]?R.pl[killerName].name:'ASESINO'))}</strong><div>DAÑO</div><strong>${Math.floor(killer.damageDealt||0)}</strong>${KL?'<em class="kl-gone">Se ha ido</em>':''}</div><div class="result-foot">TIEMPO TOTAL ${dur} s · MISIONES ${G.M.miss.filter(m=>m.done).length}/${G.M.miss.length}</div>`}
+function finishOn(w){if(G.over)return;resetEscapeAudio();G.over=w;if(LMS.on)lmsFade(4.5);closeMG();const dur=Math.round((Date.now()-G.t0)/1000),P=G.P,players={...(G.ents||{}),...(G.pl||{}),[me.id]:{...(G.pl&&G.pl[me.id]||{}),id:me.id,role:P.role,ch:P.ch,dead:P.dead,esc:P.esc,spec:P.spec,hp:P.hp,dangerTime:P.dangerTime||0,damageDealt:P.damageDealt||0,rs:P.rs||0,sk:prof.eq}};const roleOf=p=>p.role||(p.k?'k':'s'),killer=Object.values(players).find(p=>roleOf(p)==='k')||{ch:P.ch,damageDealt:0};G.resultRows=Object.keys(R.pl).filter(id=>players[id]&&roleOf(players[id])==='s').map(id=>{const p=players[id],elapsed=Math.floor(p.escapedAt?((p.escapedAt-G.t0)/1000):p.deadAt?((p.deadAt-G.t0)/1000):dur);return{name:R.pl[id].name,ch:byId(p.ch&&p.ch.id||p.ch),escaped:!!(p.esc||(G.pl&&G.pl[id]&&G.pl[id].esc)||(id===me.id&&G.P&&G.P.esc)),dead:!!(p.dead||p.d||p.spec)&&!(p.esc||(G.pl&&G.pl[id]&&G.pl[id].esc)),time:elapsed,danger:Math.floor(p.dangerTime||0),revives:p.rs||p.revives||0,sk:p.sk||'basic',lk:(R.pl[id]&&R.pl[id].looks&&R.pl[id].looks[(p.ch&&p.ch.id)||p.ch])||null}});const localK=P.role==='k'?P.ch:byId(killer.ch&&killer.ch.id||killer.ch);G.killerCh=localK;G.endCh=w==='s'?(G.resultRows.find(r=>r.escaped)?.ch||P.ch):localK;const rows=G.resultRows.map((r,i)=>`<div class="result-row ${r.dead?'dead':''}"><div class="result-player"><canvas id="res-surv-${i}" width="90" height="90"></canvas><span class="result-name">${esc(r.name)}</span></div><span class="${r.escaped?'escaped':''}">${r.escaped?'(ESCAPÓ)':r.time+' s'}</span><span>${r.danger} s</span><span>${r.revives}</span></div>`).join('');const killerName=Object.keys(players).find(id=>players[id]&&roleOf(players[id])==='k');if(!G.vr)G.vr=endVariant(G.resultRows);const KL=G.kl;G.html=`<h2>${KL?'EL ASESINO SE HA IDO':w==='s'?'SUPERVIVIENTES · ESCAPARON':'RONDA FINALIZADA · VICTORIA DEL ASESINO'}</h2><div class="res-variant">${RES_NAME[G.vr]||''}</div><div class="result-head"><b>JUGADOR</b><b>TIEMPO SOBREVIVIDO</b><b>TIEMPO EN PELIGRO</b><b>RESCATES</b></div>${rows}<div class="killer-result${KL?' gone':''}"><div class="result-player"><canvas id="res-killer" width="90" height="90"></canvas></div><strong>${esc(KL||(killerName&&R.pl[killerName]?R.pl[killerName].name:'ASESINO'))}</strong><div>DAÑO</div><strong>${Math.floor(killer.damageDealt||0)}</strong>${KL?'<em class="kl-gone">Se ha ido</em>':''}</div><div class="result-foot">TIEMPO TOTAL ${dur} s · MISIONES ${G.M.miss.filter(m=>m.done).length}/${G.M.miss.length}</div>`}
 
 function onAbility(){cbPress(0)}
 function attackBtn(){if(!G||!G.P)return;const P=G.P;if(P.role!=='k'||P.dead||P.la>0||G.over||P.stunUntil>Date.now())return;const pf=P.fx||{};if(pf.cmode>0||pf.plane>0){gmsg(pf.cmode>0?'Invisible: no puedes atacar (usa CANCELAR)':'En otro plano no puedes atacar');cbSnd('deny');return}if(pf.charge>0||pf.fly>0)return;P.la=killerAtkCd(cbId(P));P.attackFx=.38;gsend('atk');audioTone(145,.08,'triangle',.08,90);blip(200,.12);if($('#bAct')){$('#bAct').disabled=true;$('#bAct').textContent='RECARGA '+P.la.toFixed(1)+'s'}}
@@ -3716,7 +3732,7 @@ function rpHud(){const P=G.P;$('#hbar').innerHTML='<b style="color:#c78cff">ROLE
  $('#hmis').innerHTML='<b>ROLEPLAY</b> · '+(G.M.theme=='factory'?'FÁBRICA':G.M.theme=='arcade'?'SALÓN DE JUEGOS':'BOSQUE')+'<br>'+Object.keys(R.pl).map(id=>esc(R.pl[id].name)+(id==me.id?' (tú)':'')+' · '+esc(byId(R.picks[id]).n)).join('<br>');
  $('#missionRadar').style.display='none';let h='';if(P.hid)h='ACTUAR: salir del escondite';else if(G.M.hides.some(x=>Math.hypot(x.x-P.x,x.y-P.y)<42))h='ACTUAR: esconderse';
  $('#hint').textContent=G.msgT>0?G.msg:h;$('#hint').style.color=G.msgT>0?'#ffe08a':'#fff';$('#bAct').disabled=false;$('#bAct').textContent='ACTUAR'}
-function hostBackToLobby(){if(G){if(G.mgT)G.mgT.forEach(clearTimeout);G.mgT=[];closeMG()}G=null;$('#hud').style.display='none';$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id in R.pl)if(R.pl[id].bot)delete R.pl[id];R.over=null;if(srvMode()){srvEmit('adm',{a:'lobby'});lastKey='';show('lobby');return}rollNextRound();lastKey='';show('lobby');tick()}
+function hostBackToLobby(){resetEscapeAudio();if(G){if(G.mgT)G.mgT.forEach(clearTimeout);G.mgT=[];closeMG()}G=null;$('#hud').style.display='none';$('#playi').classList.remove('result-screen');$('#playi').dataset.k='';R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id in R.pl)if(R.pl[id].bot)delete R.pl[id];R.over=null;if(srvMode()){srvEmit('adm',{a:'lobby'});lastKey='';show('lobby');return}rollNextRound();lastKey='';show('lobby');tick()}
 /* Sonido de anillo gigante (Special Stage) con Web Audio: cascada ascendente + destellos + eco ligero */
 function ringSfx(){if(!AC||!FX)return;try{if(AC.state==='suspended')AC.resume();const t0=AC.currentTime+.02,out=AC.createGain(),dl=AC.createDelay(1),fb=AC.createGain(),wet=AC.createGain();out.gain.value=.55;dl.delayTime.value=.12;fb.gain.value=.36;wet.gain.value=.32;out.connect(FX);out.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(wet);wet.connect(FX);
  const tone=(f,t,d,type,v,f2)=>{const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(.0001,t);g.gain.linearRampToValueAtTime(v,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(out);o.start(t);o.stop(t+d+.05)};
@@ -4382,9 +4398,9 @@ mapMusicStop=function(reset=true){AudioManager.stopBGM();MAPM.pausedForChase=fal
 mapMusicPauseForChase=function(){AudioManager.bgmAudio.pause();MAPM.pausedForChase=true};
 mapMusicResume=function(){if(!MAPM.src||set.musOn===false||!AudioManager.unlocked)return;AudioManager.bgmAudio.volume=mapMusicVolume();const p=AudioManager.bgmAudio.play();if(p&&p.catch)p.catch(err=>console.warn('Audio pendiente:',err));MAPM.pausedForChase=false};
 // Rutas ./audio/ también para pistas de eventos legacy.
-chasePlay=function(){startChaseAudio()};
+chasePlay=function(){if(!isEscapeAudioPlaying)startChaseAudio()};
 chaseStop=function(){stopChaseAudio()};
-const origESCMPlay=ESCM.play;ESCM.play=function(){if(AudioManager.unlocked)AudioManager.playSFX('escape.mp3',MIX.escape);else origESCMPlay()};const origESCMStop=ESCM.stop;ESCM.stop=function(){if(AudioManager.sfxSrc.endsWith('/escape.mp3')){AudioManager.sfxAudio.pause();try{AudioManager.sfxAudio.currentTime=0}catch(_){}}origESCMStop()};
+ESCM.play=function(){startEscapeAudio()};ESCM.stop=function(){stopEscapeAudio();ESCM.on=false;clearInterval(ESCM.fadeT);ESCM.fadeT=null;if(ESCM.el){ESCM.el.pause();try{ESCM.el.currentTime=0}catch(_){}}};
 // Dibujo del emote del jugador local en la pasada de render existente.
 const renderEmoteNeedle='cbDrawActorFx(cx,P,now)';
 if(!window.__emoteRenderHook){const scripts=[...document.scripts];window.__emoteRenderHook=true;/* el estado y la animación siguen siendo independientes del ciclo de física */}
