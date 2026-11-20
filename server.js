@@ -65,11 +65,11 @@ function attachWebSocket(socket){
       if(opcode===9){socket.write(frame(10,payload));continue;}
       if(opcode===10)continue;
       if(opcode!==1){close(socket);return;}
-      handleMessage(socket,payload.toString('utf8'));
+      try{handleMessage(socket,payload.toString('utf8'));}catch(err){console.error('Error procesando mensaje WebSocket:',err);}
       if(socket.destroyed)return;
     }
   });
-  socket.on('close',()=>{for(const room of [...socket.rooms])leaveRoom(socket,room);clients.delete(socket);presenceDirty=true;});
+  socket.on('close',()=>{for(const room of [...socket.rooms])leaveRoom(socket,room,true);clients.delete(socket);presenceDirty=true;});
   socket.on('error',()=>{});
 }
 httpServer.on('upgrade',(req,socket)=>{
@@ -123,7 +123,7 @@ function validPresence(p){if(!isObj(p)||!isObj(p.r))return false;const r=p.r;ret
 /* ===== AUTORIDAD CENTRAL DE SALA (Lobby -> Data Select -> Cinemática -> Partida) =====
    El servidor decide los cambios de escena y los envía a TODOS los sockets de la sala al mismo tiempo.
    La simulación dentro de la ronda sigue en el anfitrión (gs/gp/ga), pero el flujo de la sala ya no depende de él. */
-const COUNTDOWN_MS=20000, SELECT_MS=35000, ALLIN_MS=3000, RESULTS_MS=Number(process.env.RESULTS_MS)||90000, SEG_LEN={1:22,2:22,3:23,4:21,5:19,6:21}, REVEAL_MS=1800, KLHOST_CLOSE_MS=27000, MAX_NAME=14;
+const COUNTDOWN_MS=180000, SELECT_MS=35000, ALLIN_MS=3000, RESULTS_MS=Number(process.env.RESULTS_MS)||90000, SEG_LEN={1:22,2:22,3:23,4:21,5:19,6:21}, REVEAL_MS=1800, KLHOST_CLOSE_MS=27000, MAX_NAME=14;
 const MAPS=['Bosque maldito','Fábrica abandonada','Salón de juegos'];
 const SURV_IDS=['val','dan','zoe','sam','abr','nic','lia','tom'], KILL_IDS=['cos','enl','pay','doc','wlf'], ALL_IDS=SURV_IDS.concat(KILL_IDS);
 const pick1=a=>a[Math.floor(Math.random()*a.length)];
@@ -135,7 +135,7 @@ function rdeny(room,roomName,s,id,m){rmsg(room,roomName,'deny',{to:id,m},s)}
 function rollRound(R){const ids=humans(R);R.nextMap=pick1(MAPS);R.map=R.nextMap;R.botKiller=!!R.botMode;const prev=R.hist.length?(R.hist[R.hist.length-1].ids||[]):[];let pool=ids.filter(i=>!prev.includes(i));if(!pool.length)pool=ids.slice();R.nextKiller=R.botKiller?null:(pool.length?pick1(pool):null);R.kid=null;R.killerId=null}
 function createRoomState(roomName,s,d){
  const code=roomName.slice(3).toUpperCase();if(!short(d.code,5)||d.code.toUpperCase()!==code||!short(d.host,40)||!isObj(d.pl)||!isObj(d.pl[d.host]))return null;
- const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:d.mode==='r'?'play':'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,botMode:d.mode==='r'?false:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},now:0};
+ const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:d.mode==='r'?'play':'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,botMode:d.mode==='r'?false:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},disconnected:{},now:0};
  R.pl[d.host]=newPl(hp.name,hp.sk,hp.looks,hp.ch);R.pp[d.host]=s.pid;if(R.mode==='r'){R.picks[d.host]=R.pl[d.host].ch;R.roles[d.host]=KILL_IDS.includes(R.pl[d.host].ch)?'k':'s';R.pl[d.host].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=d.host;
  rsys(R,'Sala creada. Comparte el código '+code+'.');rollRound(R);return R}
 function roomBroadcast(room,roomName){const R=room.R;if(!R)return;const now=Date.now();R.now=now;R.cd=R.st==='lobby'&&R.cdEnd?Math.max(0,R.cdEnd-now):null;R.selLeft=R.st==='sel'&&R.selEnd?Math.max(0,R.selEnd-now):null;rmsg(room,roomName,'st',R)}
@@ -174,7 +174,7 @@ function roomAct(room,roomName,s,a){const R=room.R;
   if(R.closed)return rdeny(room,roomName,s,id,'Sala cerrada');if(R.st!=='lobby'&&R.mode!=='r')return rdeny(room,roomName,s,id,'La partida ya comenzó');
   if(R.pl[id])return;if(humans(R).length>=MAX_PLAYERS)return rdeny(room,roomName,s,id,'SALA COMPLETA');
   if(!nm||Object.values(R.pl).some(p=>p.name.toLowerCase()===nm.toLowerCase()))return rdeny(room,roomName,s,id,'Ese nombre está vacío o ya se usa en la sala');
-  R.pl[id]=newPl(nm,a.sk,a.looks,a.ch);R.pp[id]=s.pid;if(R.mode==='r'){R.picks[id]=R.pl[id].ch;R.roles[id]=KILL_IDS.includes(R.pl[id].ch)?'k':'s';R.pl[id].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=id;rsys(R,nm+' entró');rollRound(R);return roomBroadcast(room,roomName)}
+  R.pl[id]=newPl(nm,a.sk,a.looks,a.ch);R.pp[id]=s.pid;if(R.mode==='r'){R.picks[id]=R.pl[id].ch;R.roles[id]=KILL_IDS.includes(R.pl[id].ch)?'k':'s';R.pl[id].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=id;delete R.disconnected[id];rsys(R,nm+' entró');rollRound(R);if(R.mode==='s'&&humans(R).length>=MAX_PLAYERS&&(!R.cdEnd||R.cdEnd-Date.now()>ALLIN_MS))R.cdEnd=Date.now()+ALLIN_MS;return roomBroadcast(room,roomName)}
  const id=a.id;if(!s.pids||s.pids[roomName]!==id||!R.pl[id])return;const p=R.pl[id];
  if(R.mode==='r'&&(a.t==='rpChar'||a.t==='roleplayTransform')){if(!ALL_IDS.includes(a.c))return; p.ch=a.c;R.picks[id]=a.c;R.roles[id]=KILL_IDS.includes(a.c)?'k':'s';roomBroadcast(room,roomName);rmsg(room,roomName,'rpTransform',{id,character:a.c});return}
   if(R.mode==='r'&&(a.t==='rpTp'||a.t==='roleplayTeleport')){if(!MAPS.includes(a.map)&&a.map!=='Lobby')return;R.map=a.map==='Lobby'?MAPS[0]:a.map;for(const pid of Object.keys(R.pl))R.pl[pid].map=R.map;roomBroadcast(room,roomName);rmsg(room,roomName,'rpTeleport',{id,map:a.map});return}
@@ -193,7 +193,7 @@ function roomAdmin(room,roomName,s,d){const R=room.R;if(s!==room.host||!isObj(d)
  else if(d.a==='lobby'){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R)}
  else if(d.a==='pub'){R.pub=!!d.v}
  roomBroadcast(room,roomName)}
-function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();if(R.mode==='r'){R.st='play';R.cdEnd=0;R.cd=null;R.selEnd=0;R.selLeft=null;R.botMode=false;R.ready=false;return;}
+function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();if(R.disconnected&&R.disconnected[R.host]){roomBroadcast(room,roomName);return;}if(R.mode==='r'){R.st='play';R.cdEnd=0;R.cd=null;R.selEnd=0;R.selLeft=null;R.botMode=false;R.ready=false;return;}
  // resultados: si el anfitrión no vuelve al lobby en 90 s, el servidor devuelve la sala sola (evita salas trabadas)
  // resultados: todos vuelven juntos al lobby cuando termina el segmento de audio/resultados.mp3 (+ fundido)
  const resMs=R.overAt?Math.min(RESULTS_MS,REVEAL_MS+(SEG_LEN[R.endVr]||22)*1000+700):RESULTS_MS;
@@ -206,8 +206,16 @@ function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now
  roomBroadcast(room,roomName);
  if(room.host){const pr={r:{c:R.code,n:R.nm.slice(0,48),h:(R.pl[R.host]&&R.pl[R.host].name||'Anfitrión').slice(0,24),p:humans(R).length,m:R.map,md:R.mode,s:R.st==='lobby'?'esperando':'en partida',pub:!!R.pub}},js=JSON.stringify(pr);if(js!==room.presJs){room.presJs=js;room.host.pres=pr;presenceDirty=true}}}
 setInterval(()=>{for(const [name,room] of rooms)if(room.R)roomTick(room,name)},200).unref();
-function leaveRoom(s,room){const entry=rooms.get(room);if(!entry)return;entry.clients.delete(s);s.rooms.delete(room);
+function leaveRoom(s,room,disconnected=false){const entry=rooms.get(room);if(!entry)return;entry.clients.delete(s);s.rooms.delete(room);
  if(entry.R){const R=entry.R;const hid=s.pids&&s.pids[room];
+  if(disconnected&&hid&&R.pl[hid]&&R.pp[hid]===s.pid){
+   const stamp=Date.now();R.disconnected=R.disconnected||{};R.disconnected[hid]=stamp;
+   // Ventana de 30 s para recuperar el mismo jugador sin perder su plaza ni el estado de la ronda.
+   setTimeout(()=>{if(entry.R!==R||R.disconnected?.[hid]!==stamp||R.pp[hid]!==s.pid)return;delete R.disconnected[hid];leaveRoom(s,room,false);},30000).unref();
+   if(R.host===hid)rsys(R,R.pl[hid].name+' perdió conexión; esperando reconexión…');
+   else rsys(R,R.pl[hid].name+' perdió conexión; esperando reconexión…');
+   roomBroadcast(entry,room);return;
+  }
   if(entry.host===s&&R.st==='play'&&!R.overAt&&hid&&R.roles[hid]==='k'&&entry.clients.size>0){
    // el anfitrión era el asesino: los demás ven los resultados del final 6 y luego se cierra la sala
    const nm=R.pl[hid]?R.pl[hid].name:'El asesino';rmsg(entry,room,'killerLeft',{id:hid,name:nm,hostGone:1});R.overAt=Date.now();R.endVr=6;R.hostGone=1;
@@ -216,10 +224,22 @@ function leaveRoom(s,room){const entry=rooms.get(room);if(!entry)return;entry.cl
  if(s.pids)delete s.pids[room];if(entry.host===s)entry.host=null;if(!entry.clients.size)rooms.delete(room);}
 function handleMessage(s,raw){
  const now=Date.now();if(now-s.msgWindow>=1000){s.msgWindow=now;s.msgCount=0;}if(++s.msgCount>70||Buffer.byteLength(raw)>MAX_MESSAGE)return;
- let m;try{m=JSON.parse(raw)}catch{return;}if(!isObj(m)||typeof m.op!=='string')return;
+ let m;try{m=JSON.parse(raw)}catch{return;}if(!isObj(m))return;
+ if(m.type==='ping'){send(s,{type:'pong'});return;}if(m.type==='pong')return;
+ if(typeof m.op!=='string')return;
  if(m.op==='presence'){if(!validPresence(m.p))return;s.pres=m.p;presenceDirty=true;return;}
  if(!validRoom(m.room))return;
- if(m.op==='join'){let room=rooms.get(m.room);if(!room){room={clients:new Set(),host:s};rooms.set(m.room,room);}if(s.rooms.has(m.room)||room.clients.size>=MAX_PLAYERS||s.rooms.size>=2)return;room.clients.add(s);s.rooms.add(m.room);return;}
+ if(m.op==='join'){let room=rooms.get(m.room);if(!room){room={clients:new Set(),host:s};rooms.set(m.room,room);}if(s.rooms.has(m.room)||room.clients.size>=MAX_PLAYERS||s.rooms.size>=2)return;
+  room.clients.add(s);s.rooms.add(m.room);
+  const resumeId=short(m.playerId,40)?m.playerId:null,R=room.R;
+  if(R&&resumeId&&R.pl[resumeId]){
+   const oldPid=R.pp[resumeId],lostAt=R.disconnected[resumeId];delete R.disconnected[resumeId];R.pp[resumeId]=s.pid;s.pids=s.pids||{};s.pids[m.room]=resumeId;
+   if(R.host===resumeId){room.host=s;if(Number.isFinite(lostAt)){const paused=Math.max(0,Date.now()-lostAt);if(R.cdEnd)R.cdEnd+=paused;if(R.selEnd)R.selEnd+=paused;if(R.overAt)R.overAt+=paused;}}
+   // Si el socket anterior sigue vivo por un cierre tardío, ya no puede controlar al jugador.
+   for(const old of clients)if(old!==s&&old.pid===oldPid){old.pids=old.pids||{};delete old.pids[m.room];}
+   roomBroadcast(room,m.room);
+  }
+  return;}
  if(m.op==='leave'){if(s.rooms.has(m.room))leaveRoom(s,m.room);return;}
  if(m.op!=='emit'||!s.rooms.has(m.room)||!short(m.type,16))return;
  const room=rooms.get(m.room);if(!room||!isObj(m.data))return;
@@ -246,5 +266,7 @@ function handleMessage(s,raw){
  for(const target of room.clients)if(target!==s)send(target,{op:'msg',room:m.room,type:m.type,data:m.data,peer:s.pid});
 }
 setInterval(()=>{if(!presenceDirty)return;presenceDirty=false;const list=[...clients].map(s=>({id:s.pid,presence:s.pres||null}));for(const s of clients)send(s,{op:'peers',list});},750).unref();
+// Heartbeat de aplicación: mantiene activo el WebSocket detrás del proxy de Render.
+setInterval(()=>{for(const s of clients)if(!s.destroyed&&!s.writableEnded)send(s,{type:'ping'});},15000).unref();
 httpServer.listen(PORT,HOST,()=>console.log(`Supervivientes1 listo en puerto ${PORT}`));
 httpServer.on('error',err=>{console.error('Error del servidor:',err);process.exitCode=1;});
