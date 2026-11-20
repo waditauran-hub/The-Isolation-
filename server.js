@@ -98,12 +98,15 @@ function handleChat(s,roomName,room,d){
  for(const target of room.clients)send(target,{op:'msg',room:roomName,type:'chatMessage',data:out,peer:s.pid});
 }
 function validAct(a){
- if(!isObj(a)||!short(a.id,40)||!['join','mv','chat','look','pick','conf','leave'].includes(a.t))return false;
+ if(!isObj(a)||!short(a.id,40)||!['join','mv','chat','look','pick','conf','leave','rpChar','rpTp','rpAction'].includes(a.t))return false;
  if(a.t==='join')return short(a.name,14)&&(a.sk==null||short(a.sk,64))&&(a.ch==null||short(a.ch,48))&&(a.looks==null||(isObj(a.looks)&&safeSize(a.looks)));
  if(a.t==='mv')return finite(a.x)&&finite(a.y)&&Math.abs(a.x)<=2&&Math.abs(a.y)<=2;
  if(a.t==='chat')return typeof a.m==='string'&&a.m.length<=140;
  if(a.t==='look')return isObj(a.looks)&&safeSize(a.looks);
  if(a.t==='pick')return short(a.c,48);
+ if(a.t==='rpChar')return short(a.c,48);
+ if(a.t==='rpTp')return short(a.map,48);
+ if(a.t==='rpAction')return Number.isInteger(a.i)&&a.i>=0&&a.i<5&&short(a.c,48);
  return true;
 }
 function validPosition(d){return isObj(d)&&short(d.id,40)&&finite(d.x)&&finite(d.y)&&Math.abs(d.x)<=100000&&Math.abs(d.y)<=100000&&['f','dx','dy','h','fu','iv','mv','run','jp','sta','ex'].every(k=>d[k]==null||finite(d[k])||typeof d[k]==='boolean');}
@@ -119,7 +122,7 @@ function validPresence(p){if(!isObj(p)||!isObj(p.r))return false;const r=p.r;ret
 /* ===== AUTORIDAD CENTRAL DE SALA (Lobby -> Data Select -> Cinemática -> Partida) =====
    El servidor decide los cambios de escena y los envía a TODOS los sockets de la sala al mismo tiempo.
    La simulación dentro de la ronda sigue en el anfitrión (gs/gp/ga), pero el flujo de la sala ya no depende de él. */
-const COUNTDOWN_MS=20000, SELECT_MS=35000, ALLIN_MS=3000, RESULTS_MS=Number(process.env.RESULTS_MS)||90000, MAX_NAME=14;
+const COUNTDOWN_MS=20000, SELECT_MS=35000, ALLIN_MS=3000, RESULTS_MS=Number(process.env.RESULTS_MS)||90000, SEG_LEN={1:22,2:22,3:23,4:21,5:19,6:21}, REVEAL_MS=1800, KLHOST_CLOSE_MS=27000, MAX_NAME=14;
 const MAPS=['Bosque maldito','Fábrica abandonada','Salón de juegos'];
 const SURV_IDS=['val','dan','zoe','sam','abr','nic','lia','tom'], KILL_IDS=['cos','enl','pay','doc','wlf'], ALL_IDS=SURV_IDS.concat(KILL_IDS);
 const pick1=a=>a[Math.floor(Math.random()*a.length)];
@@ -131,8 +134,8 @@ function rdeny(room,roomName,s,id,m){rmsg(room,roomName,'deny',{to:id,m},s)}
 function rollRound(R){const ids=humans(R);R.nextMap=pick1(MAPS);R.map=R.nextMap;R.botKiller=!!R.botMode;const prev=R.hist.length?(R.hist[R.hist.length-1].ids||[]):[];let pool=ids.filter(i=>!prev.includes(i));if(!pool.length)pool=ids.slice();R.nextKiller=R.botKiller?null:(pool.length?pick1(pool):null);R.kid=null;R.killerId=null}
 function createRoomState(roomName,s,d){
  const code=roomName.slice(3).toUpperCase();if(!short(d.code,5)||d.code.toUpperCase()!==code||!short(d.host,40)||!isObj(d.pl)||!isObj(d.pl[d.host]))return null;
- const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,botMode:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},now:0};
- R.pl[d.host]=newPl(hp.name,hp.sk,hp.looks,hp.ch);R.pp[d.host]=s.pid;s.pids=s.pids||{};s.pids[roomName]=d.host;
+ const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:d.mode==='r'?'play':'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,botMode:d.mode==='r'?false:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},now:0};
+ R.pl[d.host]=newPl(hp.name,hp.sk,hp.looks,hp.ch);R.pp[d.host]=s.pid;if(R.mode==='r'){R.picks[d.host]=R.pl[d.host].ch;R.roles[d.host]=KILL_IDS.includes(R.pl[d.host].ch)?'k':'s';R.pl[d.host].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=d.host;
  rsys(R,'Sala creada. Comparte el código '+code+'.');rollRound(R);return R}
 function roomBroadcast(room,roomName){const R=room.R;if(!R)return;const now=Date.now();R.now=now;R.cd=R.st==='lobby'&&R.cdEnd?Math.max(0,R.cdEnd-now):null;R.selLeft=R.st==='sel'&&R.selEnd?Math.max(0,R.selEnd-now):null;rmsg(room,roomName,'st',R)}
 function selUpdate(room,roomName){const R=room.R;rmsg(room,roomName,'characterSelectUpdate',{picks:R.picks,conf:R.conf,roles:R.roles,selLeft:R.selEnd?Math.max(0,R.selEnd-Date.now()):0})}
@@ -160,17 +163,22 @@ function selectCharacter(room,roomName,s,id,c,confirmed){const R=room.R;if(R.st!
   if(Object.entries(R.picks).some(([k,v])=>v===c&&k!==id))return rdeny(room,roomName,s,id,'Personaje ocupado');R.picks[id]=c;R.pl[id].ch=c}
  if(confirmed&&R.picks[id])R.conf[id]=1;
  selUpdate(room,roomName);checkAllConfirmed(room,roomName);roomBroadcast(room,roomName)}
-function dropPlayer(room,roomName,id,why){const R=room.R;const p=R&&R.pl[id];if(!p)return;delete R.pl[id];delete R.votes[id];delete R.picks[id];delete R.conf[id];delete R.roles[id];delete R.pp[id];rsys(R,p.name+why);
+function dropPlayer(room,roomName,id,why){const R=room.R;const p=R&&R.pl[id];if(!p)return;const wasKiller=R.st==='play'&&R.roles[id]==='k'&&!R.overAt;delete R.pl[id];delete R.votes[id];delete R.picks[id];delete R.conf[id];delete R.roles[id];delete R.pp[id];rsys(R,p.name+why);
  if(R.st==='sel'){if(id===R.killerId)cancelSelect(room,roomName,'El asesino salió. Se sortean nuevo asesino y mapa.');else checkAllConfirmed(room,roomName)}
- else if(R.st==='lobby'&&R.nextKiller===id)rollRound(R)}
+ else if(R.st==='lobby'&&R.nextKiller===id)rollRound(R);
+ // el asesino abandonó en mitad de la ronda: la partida termina con el final 6 ("El asesino se ha ido")
+ if(wasKiller){rsys(R,'El asesino '+p.name+' se ha ido.');rmsg(room,roomName,'killerLeft',{id,name:p.name})}}
 function roomAct(room,roomName,s,a){const R=room.R;
  if(a.t==='join'){const id=a.id,nm=cleanChat(a.name||'',MAX_NAME);
-  if(R.closed)return rdeny(room,roomName,s,id,'Sala cerrada');if(R.st!=='lobby')return rdeny(room,roomName,s,id,'La partida ya comenzó');
+  if(R.closed)return rdeny(room,roomName,s,id,'Sala cerrada');if(R.st!=='lobby'&&R.mode!=='r')return rdeny(room,roomName,s,id,'La partida ya comenzó');
   if(R.pl[id])return;if(humans(R).length>=MAX_PLAYERS)return rdeny(room,roomName,s,id,'SALA COMPLETA');
   if(!nm||Object.values(R.pl).some(p=>p.name.toLowerCase()===nm.toLowerCase()))return rdeny(room,roomName,s,id,'Ese nombre está vacío o ya se usa en la sala');
-  R.pl[id]=newPl(nm,a.sk,a.looks,a.ch);R.pp[id]=s.pid;s.pids=s.pids||{};s.pids[roomName]=id;rsys(R,nm+' entró');rollRound(R);return roomBroadcast(room,roomName)}
+  R.pl[id]=newPl(nm,a.sk,a.looks,a.ch);R.pp[id]=s.pid;if(R.mode==='r'){R.picks[id]=R.pl[id].ch;R.roles[id]=KILL_IDS.includes(R.pl[id].ch)?'k':'s';R.pl[id].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=id;rsys(R,nm+' entró');rollRound(R);return roomBroadcast(room,roomName)}
  const id=a.id;if(!s.pids||s.pids[roomName]!==id||!R.pl[id])return;const p=R.pl[id];
- if(a.t==='mv'){p.x=Math.min(.97,Math.max(.03,+a.x||0));p.y=Math.min(.97,Math.max(.03,+a.y||0));return}
+ if(R.mode==='r'&&a.t==='rpChar'){if(!ALL_IDS.includes(a.c))return; p.ch=a.c;R.picks[id]=a.c;R.roles[id]=KILL_IDS.includes(a.c)?'k':'s';roomBroadcast(room,roomName);rmsg(room,roomName,'rpTransform',{id,character:a.c});return}
+  if(R.mode==='r'&&a.t==='rpTp'){if(!MAPS.includes(a.map)&&a.map!=='Lobby')return;R.map=a.map==='Lobby'?MAPS[0]:a.map;for(const pid of Object.keys(R.pl))R.pl[pid].map=R.map;roomBroadcast(room,roomName);rmsg(room,roomName,'rpTeleport',{id,map:a.map});return}
+  if(R.mode==='r'&&a.t==='rpAction'){if(!ALL_IDS.includes(a.c))return;rmsg(room,roomName,'rpAction',{id,character:a.c,index:a.i,at:Date.now()});return}
+  if(a.t==='mv'){p.x=Math.min(.97,Math.max(.03,+a.x||0));p.y=Math.min(.97,Math.max(.03,+a.y||0));return}
  if(a.t==='chat'){const m=cleanChat(a.m||'',140);if(m){p.say=m;p.sayT=Date.now();R.chat.push({id,n:p.name,m,t:Date.now()});R.chat=R.chat.slice(-40)}}
  else if(a.t==='look'){if(isObj(a.looks)&&safeSize(a.looks))p.looks=a.looks}
  else if(a.t==='pick')return selectCharacter(room,roomName,s,id,a.c,false);
@@ -178,14 +186,16 @@ function roomAct(room,roomName,s,a){const R=room.R;
  else if(a.t==='leave'){dropPlayer(room,roomName,id,' salió')}
  roomBroadcast(room,roomName)}
 function roomAdmin(room,roomName,s,d){const R=room.R;if(s!==room.host||!isObj(d))return;
- if(d.a==='bot'){R.botMode=!!d.v;if(R.st==='lobby'){R.cdEnd=0;rollRound(R)}rsys(R,R.botMode?'MODO BOT activado: todos son supervivientes contra el asesino IA.':'MODO BOT desactivado: un jugador será el asesino.')}
+ if(d.a==='bot'){if(R.mode==='r')return;R.botMode=!!d.v;if(R.st==='lobby'){R.cdEnd=0;rollRound(R)}rsys(R,R.botMode?'MODO BOT activado: todos son supervivientes contra el asesino IA.':'MODO BOT desactivado: un jugador será el asesino.')}
  else if(d.a==='kick'&&short(d.id,40)&&d.id!==R.host&&R.pl[d.id]){for(const t of room.clients)if(t.pids&&t.pids[roomName]===d.id)rdeny(room,roomName,t,d.id,'Fuiste expulsado/a por el anfitrión');dropPlayer(room,roomName,d.id,' fue expulsado')}
  else if(d.a==='lobby'){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R)}
  else if(d.a==='pub'){R.pub=!!d.v}
  roomBroadcast(room,roomName)}
-function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();
+function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();if(R.mode==='r'){R.st='play';R.cdEnd=0;R.cd=null;R.selEnd=0;R.selLeft=null;R.botMode=false;R.ready=false;return;}
  // resultados: si el anfitrión no vuelve al lobby en 90 s, el servidor devuelve la sala sola (evita salas trabadas)
- if(R.st==='play'&&R.overAt&&now-R.overAt>=RESULTS_MS){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R);rsys(R,'Tiempo de resultados agotado: volvieron todos al lobby.');return roomBroadcast(room,roomName)}
+ // resultados: todos vuelven juntos al lobby cuando termina el segmento de audio/resultados.mp3 (+ fundido)
+ const resMs=R.overAt?Math.min(RESULTS_MS,REVEAL_MS+(SEG_LEN[R.endVr]||22)*1000+700):RESULTS_MS;
+ if(R.st==='play'&&R.overAt&&!R.hostGone&&now-R.overAt>=resMs){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R);rsys(R,'Fin de los resultados: volvieron todos al lobby.');return roomBroadcast(room,roomName)}
  if(R.st==='lobby'){const ok=humans(R).length>=2;R.ready=ok;if(ok&&!R.cdEnd)R.cdEnd=now+COUNTDOWN_MS;if(!ok)R.cdEnd=0;if(R.cdEnd&&now>=R.cdEnd)return startCharacterSelect(room,roomName)}
  else if(R.st==='sel'&&R.selEnd&&now>=R.selEnd){const kid=R.killerId;
   if(kid&&R.pl[kid]&&!R.pl[kid].bot&&!R.picks[kid])return cancelSelect(room,roomName,'Selección cancelada: '+R.pl[kid].name+' no eligió asesino a tiempo. Se sortearon nuevo asesino y mapa.');
@@ -195,7 +205,12 @@ function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now
  if(room.host){const pr={r:{c:R.code,n:R.nm.slice(0,48),h:(R.pl[R.host]&&R.pl[R.host].name||'Anfitrión').slice(0,24),p:humans(R).length,m:R.map,md:R.mode,s:R.st==='lobby'?'esperando':'en partida',pub:!!R.pub}},js=JSON.stringify(pr);if(js!==room.presJs){room.presJs=js;room.host.pres=pr;presenceDirty=true}}}
 setInterval(()=>{for(const [name,room] of rooms)if(room.R)roomTick(room,name)},200).unref();
 function leaveRoom(s,room){const entry=rooms.get(room);if(!entry)return;entry.clients.delete(s);s.rooms.delete(room);
- if(entry.R){const R=entry.R;if(entry.host===s){R.closed=true;rmsg(entry,room,'st',R);if(s.pres)s.pres=null;presenceDirty=true;entry.R=null}else{const id=s.pids&&s.pids[room];if(id&&R.pl[id]&&R.pp[id]===s.pid){dropPlayer(entry,room,id,' se desconectó');roomBroadcast(entry,room)}}}
+ if(entry.R){const R=entry.R;const hid=s.pids&&s.pids[room];
+  if(entry.host===s&&R.st==='play'&&!R.overAt&&hid&&R.roles[hid]==='k'&&entry.clients.size>0){
+   // el anfitrión era el asesino: los demás ven los resultados del final 6 y luego se cierra la sala
+   const nm=R.pl[hid]?R.pl[hid].name:'El asesino';rmsg(entry,room,'killerLeft',{id:hid,name:nm,hostGone:1});R.overAt=Date.now();R.endVr=6;R.hostGone=1;
+   setTimeout(()=>{if(entry.R!==R)return;R.closed=true;rmsg(entry,room,'st',R);entry.R=null},KLHOST_CLOSE_MS);if(s.pres)s.pres=null;presenceDirty=true;return}
+  if(entry.host===s){R.closed=true;rmsg(entry,room,'st',R);if(s.pres)s.pres=null;presenceDirty=true;entry.R=null}else{const id=s.pids&&s.pids[room];if(id&&R.pl[id]&&R.pp[id]===s.pid){dropPlayer(entry,room,id,' se desconectó');roomBroadcast(entry,room)}}}
  if(s.pids)delete s.pids[room];if(entry.host===s)entry.host=null;if(!entry.clients.size)rooms.delete(room);}
 function handleMessage(s,raw){
  const now=Date.now();if(now-s.msgWindow>=1000){s.msgWindow=now;s.msgCount=0;}if(++s.msgCount>70||Buffer.byteLength(raw)>MAX_MESSAGE)return;
@@ -224,7 +239,7 @@ function handleMessage(s,raw){
  else if(['st','gs','deny'].includes(m.type)&&s===room.host)ok=validState(m.type,m.data);
  if(!ok)return;
  if(m.type==='act'&&m.data.t==='join'){s.pids=s.pids||{};if(!s.pids[m.room])s.pids[m.room]=m.data.id;}
- if(m.type==='gs'&&room.R&&room.R.st==='play'&&m.data.w&&!room.R.overAt)room.R.overAt=Date.now();
+ if(m.type==='gs'&&room.R&&room.R.st==='play'&&m.data.w&&!room.R.overAt){room.R.overAt=Date.now();room.R.endVr=Math.min(6,Math.max(1,Math.floor(+m.data.vr)||5))}
  if(m.type==='st'){const d=m.data,names={};for(const k of Object.keys(d.pl))if(isObj(d.pl[k]))names[k]=typeof d.pl[k].name==='string'?d.pl[k].name:'';room.state={st:d.st,roles:isObj(d.roles)?d.roles:{},names};if(short(d.host,40)){s.pids=s.pids||{};s.pids[m.room]=d.host;}}
  for(const target of room.clients)if(target!==s)send(target,{op:'msg',room:m.room,type:m.type,data:m.data,peer:s.pid});
 }
