@@ -427,10 +427,10 @@ body.resultsOn #back{display:none!important}
 </head><body>
 <canvas id="cv"></canvas>
 <div id="fxWhite" aria-hidden="true"></div><div id="fxBlack" aria-hidden="true"></div>
-<audio id="chaseMusic" src="audio/chase.mp3" loop preload="none"></audio>
-<audio id="escapeMusic" src="audio/escape.mp3" loop preload="none"></audio>
-<audio id="resultsMusic" src="audio/resultados.mp3" preload="auto"></audio>
-<audio id="killerLaughSound" src="audio/risa.mp3" preload="auto"></audio>
+<audio id="chaseMusic" src="./audio/chase.mp3" loop preload="none"></audio>
+<audio id="escapeMusic" src="./audio/escape.mp3" loop preload="none"></audio>
+<audio id="resultsMusic" src="./audio/resultados.mp3" preload="auto"></audio>
+<audio id="killerLaughSound" src="./audio/risa.mp3" preload="auto"></audio>
 <div id="cine" aria-hidden="true"><canvas id="cineCv"></canvas></div>
 <div id="dangerVig" class="lv0" aria-hidden="true"><i class="vb"></i><i class="vv"></i></div>
 
@@ -2932,7 +2932,7 @@ function drawGame(){const M=G.M,P=G.P,K=G.K;
  else if(P.dead){cx.fillStyle='rgba(120,0,10,.25)';cx.fillRect(0,0,W,H)}}
 function drawOnEnts(now){const P=G.P,L=[],vk=P.role=='k',t=now/1000;
  if(!(P.hid||P.spec||P.esc)||P.dead)L.push({y:P.y,me:1});for(const id in G.ents){const o=G.ents[id];if(o.d||o.e||o.sp||o.h)continue;L.push({y:o.y,o,id})}
- L.sort((a,b)=>a.y-b.y);L.forEach(q=>{if(q.me){const f=P.dead?Math.min(1,1-Math.max(0,P.deadT)/1.3):cbDown(P)?.92:0,al=(P.fx&&P.fx.vanish>0)?.25:(P.fx&&P.fx.invis>0)?.3:P.resp>0?.4+Math.sin(now/60)*.3:P.inv?.55+Math.sin(now/90)*.25:P.ivT>0?.35:1;const killers=Object.values(G.ents).filter(o=>o.k&&!o.d&&!o.sp),kd=killers.length?Math.min(...killers.map(o=>Math.hypot(o.x-P.x,o.y-P.y))):9999,near=Math.max(0,1-kd/300),phase=t*(P.animRun?2.8:P.animMove?1.8:.45);if(P.role==='k'&&P.tt){const dx=P.tt[0]-P.x,dy=P.tt[1]-P.y,dd=Math.hypot(dx,dy)||1,ux=dx/dd,uy=dy/dd;cx.save();cx.strokeStyle='rgba(255,225,40,.95)';cx.fillStyle='rgba(255,225,40,.95)';cx.lineWidth=5;cx.beginPath();cx.moveTo(P.x+ux*30,P.y+uy*30);cx.lineTo(P.x+ux*78,P.y+uy*78);cx.stroke();cx.beginPath();cx.moveTo(P.x+ux*96,P.y+uy*96);cx.lineTo(P.x+ux*74-uy*12,P.y+uy*74+ux*12);cx.lineTo(P.x+ux*74+uy*12,P.y+uy*74-ux*12);cx.fill();cx.restore()}if(P.role==='k'&&cbId(P)==='pay'&&P.animMove&&!(P.fx&&P.fx.spin>0))cbSpark(P,P.x,P.y,P.face);const pal=P.role==='k'&&P.fx&&P.fx.plane>0?.45:al;ent(cx,P.role==='k'&&P.fx&&P.fx.disg>0&&P.dg?byId(P.dg[1]):P.ch,P.x,P.y+cbLiftY(P),P.face,phase,pal,f*Math.PI/2||cbTilt(P,P.face),prof.eq,P.animMove||0,P.animRun||false,near,P.animJump||0,prof.looks[P.ch.id],cbAnOf(P));cbDrawActorFx(cx,P,now)}
+ L.sort((a,b)=>a.y-b.y);L.forEach(q=>{if(q.me){const f=P.dead?Math.min(1,1-Math.max(0,P.deadT)/1.3):cbDown(P)?.92:0,al=(P.fx&&P.fx.vanish>0)?.25:(P.fx&&P.fx.invis>0)?.3:P.resp>0?.4+Math.sin(now/60)*.3:P.inv?.55+Math.sin(now/90)*.25:P.ivT>0?.35:1;const killers=Object.values(G.ents).filter(o=>o.k&&!o.d&&!o.sp),kd=killers.length?Math.min(...killers.map(o=>Math.hypot(o.x-P.x,o.y-P.y))):9999,near=Math.max(0,1-kd/300),phase=t*(P.animRun?2.8:P.animMove?1.8:.45);if(P.role==='k'&&P.tt){const dx=P.tt[0]-P.x,dy=P.tt[1]-P.y,dd=Math.hypot(dx,dy)||1,ux=dx/dd,uy=dy/dd;cx.save();cx.strokeStyle='rgba(255,225,40,.95)';cx.fillStyle='rgba(255,225,40,.95)';cx.lineWidth=5;cx.beginPath();cx.moveTo(P.x+ux*30,P.y+uy*30);cx.lineTo(P.x+ux*78,P.y+uy*78);cx.stroke();cx.beginPath();cx.moveTo(P.x+ux*96,P.y+uy*96);cx.lineTo(P.x+ux*74-uy*12,P.y+uy*74+ux*12);cx.lineTo(P.x+ux*74+uy*12,P.y+uy*74-ux*12);cx.fill();cx.restore()}if(P.role==='k'&&cbId(P)==='pay'&&P.animMove&&!(P.fx&&P.fx.spin>0))cbSpark(P,P.x,P.y,P.face);const pal=P.role==='k'&&P.fx&&P.fx.plane>0?.45:al;ent(cx,P.role==='k'&&P.fx&&P.fx.disg>0&&P.dg?byId(P.dg[1]):P.ch,P.x,P.y+cbLiftY(P),P.face,phase,pal,f*Math.PI/2||cbTilt(P,P.face),prof.eq,P.animMove||0,P.animRun||false,near,P.animJump||0,prof.looks[P.ch.id],cbAnOf(P));cbDrawActorFx(cx,P,now);if(P.emote&&window.drawPlayerEmoteFx)drawPlayerEmoteFx(cx,P,now)}
   else{const o=q.o,al=(o.fx&&(o.fx.vanish>0||o.fx.invis>0))?0:(o.k&&o.fx&&o.fx.plane>0)?.16:o.iv?(vk?.4:.14):o.v?.55:(vk&&o.q&&Math.hypot(o.x-P.x,o.y-P.y)>200?.45:1);const threat=Object.values(G.ents).filter(v=>v.k&&!v.d&&!v.sp),nd=threat.length?Math.min(...threat.map(v=>Math.hypot(v.x-o.x,v.y-o.y))):9999,fr=o.k?0:Math.max(0,1-nd/300);if(o.k&&o.ch&&o.ch.id==='pay'&&o.mv&&al>0&&!(o.fx&&o.fx.spin>0))cbSpark(o,o.x,o.y,o.f);ent(cx,cbDispCh(o),o.x,o.y+cbLiftY(o),o.f||1,t*(o.run?2.8:1.8),al,cbDown(o)?Math.PI/2*.92:cbTilt(o,o.f||1),(R.pl[q.id]&&R.pl[q.id].sk)||'basic',o.mv&&!cbDown(o)?1:0,!!o.run,fr,o.jp||0,(R.pl[q.id]&&R.pl[q.id].looks&&R.pl[q.id].looks[o.ch.id])||null,cbAnOf(o));if(al>0)cbDrawActorFx(cx,o,now);if(o.k&&o.at>0){cx.save();cx.strokeStyle='rgba(255,95,70,.9)';cx.lineWidth=5;cx.beginPath();cx.arc(o.x,o.y-18,34,now/1000,now/1000+1.8);cx.stroke();cx.restore()}if(o.k&&o.st>0){cx.save();cx.strokeStyle='rgba(255,225,90,.9)';cx.lineWidth=4;cx.beginPath();cx.arc(o.x,o.y-28,28+Math.sin(now/80)*4,0,Math.PI*2);cx.stroke();cx.font='bold 22px system-ui';cx.textAlign='center';cx.fillStyle='#ffe36b';cx.fillText('✦ ✦ ✦',o.x,o.y-58);cx.restore()}if(al>.2){cx.font='700 12px system-ui';cx.textAlign='center';cx.strokeStyle='#000';cx.lineWidth=3;const dz=o.k&&o.dg&&o.fx&&o.fx.disg>0&&!vk,nm=dz?(R.pl[o.dg[0]]?R.pl[o.dg[0]].name:''):R.pl[q.id]?R.pl[q.id].name:'';cx.strokeText(nm,o.x,o.y-86);cx.fillStyle=o.k&&!dz?'#ff6a6a':'#fff';cx.fillText(nm,o.x,o.y-86)}}})}
 function hudUpdate(){const k=false,P=G.P,rem=Math.max(0,Math.ceil((G.end-Date.now())/1000));
  updateSpectatorUI();$('#hbar').innerHTML=`${G.huntOn?'<b style="color:#ff2020;letter-spacing:.1em">ESCONDETE</b>':`<b style="color:${rem<=80?'#52ff70': '#fff'}">⏱ ${rem}</b>`} · ${healthMarkup(P.hp)} · ${staminaMarkup(P.sta)}${R?.solo&&set.botMode&&G.K?` · BOT ${staminaMarkup(G.K.sta)}`:''} · ${G.blackout?'<b style="color:#ff6666">· APAGÓN</b>':''} ${G.open?'<span class="ok">PORTAL VERDE ABIERTO</span>':'<span style="color:#ff9a9a">PORTAL CERRADO · ABRE EN 80</span>'}${G.K.st=='chase'?' · <b style="color:#ff4a4a">¡TE PERSIGUEN!</b>':''}`;
@@ -4254,6 +4254,107 @@ rpUiObserver.observe(document.getElementById('hud'),{attributes:true,attributeFi
  $id('rpTPClose')?.addEventListener('click',()=> $id('rpTPModal')?.classList.remove('on'));
  $id('rpInfo')?.addEventListener('click',()=>{if(!isRP())return;CI.tab='s';ciRender();$id('charInfo')?.classList.add('on')});
  // El servidor reenvía estos eventos a todos los miembros de la sala.
+})();
+</script>
+
+
+<style id="emote-wheel-style">
+.shop-main-tabs button{touch-action:manipulation}
+.emote-wheel-backdrop{position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.38);display:none;align-items:center;justify-content:center;touch-action:manipulation}
+.emote-wheel-backdrop.on{display:flex}
+.emote-wheel{position:relative;width:min(88vw,440px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,#21131b 0 27%,#09070b 28% 100%);border:3px solid #a92335;box-shadow:0 0 0 5px #26070c,0 0 45px #d21d3580;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);padding:12%;gap:5px;touch-action:manipulation}
+.emote-wheel:before{content:'EMOTES';position:absolute;inset:40%;display:grid;place-items:center;border-radius:50%;border:1px solid #a92335;color:#f4d9df;font:900 clamp(10px,2.5vw,15px) system-ui;letter-spacing:.12em;background:#10090e}
+.emote-wheel button{position:relative;z-index:1;min-width:0;min-height:0;border:1px solid #8b3441;border-radius:12px;background:linear-gradient(145deg,#21131b,#09070b);color:#fff;font:800 clamp(9px,2.3vw,12px) system-ui;padding:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;touch-action:manipulation}
+.emote-wheel button.locked{filter:grayscale(1);opacity:.6}.emote-wheel button .ei{font-size:clamp(18px,5vw,27px)}.emote-wheel button:active{background:#641724}
+.emote-wheel button:nth-child(1){grid-area:1/2}.emote-wheel button:nth-child(2){grid-area:1/3}.emote-wheel button:nth-child(3){grid-area:2/3}.emote-wheel button:nth-child(4){grid-area:3/3}.emote-wheel button:nth-child(5){grid-area:3/2}.emote-wheel button:nth-child(6){grid-area:3/1}
+#emoteMobileBtn{position:fixed;right:16px;top:calc(env(safe-area-inset-top,0px) + 72px);z-index:5100;display:none;min-width:46px;width:48px;height:46px;padding:0;border:2px solid #a92335;border-radius:12px;background:#10090eee;color:white;font-size:22px;touch-action:manipulation}
+#emoteMobileBtn .keyhint{font-size:9px;display:block;line-height:1}body.pc #emoteMobileBtn{display:block}body.mob #emoteMobileBtn{display:block}body.mob #emoteMobileBtn .keyhint{display:none}
+#emoteMobileBtn{right:14px;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 170px)}
+.emote-card .shopk-p{margin:3px}.emote-card .btn{touch-action:manipulation}
+</style>
+<div id="emoteWheelBackdrop" class="emote-wheel-backdrop" aria-hidden="true"><div class="emote-wheel" id="emoteWheel" role="dialog" aria-label="Rueda de emotes"></div></div>
+<button id="emoteMobileBtn" type="button" aria-label="Abrir rueda de emotes">🎭<span class="keyhint">[X]</span></button>
+<script>
+(()=>{
+'use strict';
+const EMOTES=[
+ {id:'wave',n:'Saludo Amistoso',p:0,ic:'👋',d:'Saluda con un destello amistoso.'},
+ {id:'sit',n:'Sentarse y Descansar',p:250,ic:'🪑',d:'Se sienta para descansar.'},
+ {id:'dance',n:'Baile Rítmico',p:450,ic:'💃',d:'Baile con rebote y movimiento.'},
+ {id:'taunt',n:'Burla / Risa Burlona',p:600,ic:'😆',d:'Pose burlona con pequeños saltos.'},
+ {id:'spooky',n:'Spooky Dance',p:850,ic:'🕺',d:'Baile espeluznante de brazos cruzados.'},
+ {id:'victory',n:'Victoria Épica',p:1200,ic:'🏆',d:'Pose heroica con destellos dorados.'}
+];
+const EMOTE_BY=Object.fromEntries(EMOTES.map(e=>[e.id,e]));
+prof.emoteOwn=Array.isArray(prof.emoteOwn)?[...new Set(['wave',...prof.emoteOwn])]:['wave'];
+function owns(id){return prof.emoteOwn.includes(id)}
+function saveEmotes(){save('sv_prof',prof);coinsUi()}
+function isTyping(){return typingNow()||['INPUT','TEXTAREA'].includes(document.activeElement?.tagName)||document.activeElement?.isContentEditable}
+function activePlayer(){return G&&G.P&&!G.over&&['lobby','play','shop'].includes(scene)}
+function stopEmote(reason='cancel'){const P=G&&G.P;if(!P||!P.emote)return;P.emote=null;if(srvMode())send({t:'playerEmote',e:'',c:P.ch?.id||R?.picks?.[me.id]||'val'});}
+function playEmote(id){const e=EMOTE_BY[id],P=G&&G.P;if(!e||!owns(id)||!P||!activePlayer())return;
+ P.emote={id,at:performance.now(),lastX:P.x,lastY:P.y,hp:P.hp};
+ if(srvMode())send({t:'playerEmote',e:id,c:P.ch?.id||R?.picks?.[me.id]||'val'});
+ closeWheel();if(typeof gmsg==='function')gmsg('EMOTE · '+e.n);
+}
+function openWheel(){if(!activePlayer())return;const root=document.getElementById('emoteWheel'),back=document.getElementById('emoteWheelBackdrop');root.innerHTML=EMOTES.map(e=>{const own=owns(e.id);return `<button type="button" data-emote="${e.id}" class="${own?'':'locked'}" aria-label="${esc(e.n)}"><span class="ei">${e.ic}</span><span>${esc(e.n)}</span><small>${own?'':'🔒 '+e.p+' 🪙'}</small></button>`}).join('');back.classList.add('on');back.setAttribute('aria-hidden','false')}
+function closeWheel(){const b=document.getElementById('emoteWheelBackdrop');b.classList.remove('on');b.setAttribute('aria-hidden','true')}
+const back=document.getElementById('emoteWheelBackdrop');
+back.addEventListener('pointerdown',e=>{if(e.target===back)closeWheel()});
+back.addEventListener('click',e=>{if(e.target===back)closeWheel();const b=e.target.closest('[data-emote]');if(!b)return;const id=b.dataset.emote;if(!owns(id)){closeWheel();return}playEmote(id)});
+document.getElementById('emoteMobileBtn').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();openWheel()});
+document.addEventListener('keydown',e=>{if(isTyping())return;if(e.key.toLowerCase()==='x'){e.preventDefault();back.classList.contains('on')?closeWheel():openWheel()}else if(e.key==='Escape'&&back.classList.contains('on'))closeWheel()});
+// Cancelar automáticamente al moverse, saltar, usar una habilidad o recibir daño.
+setInterval(()=>{const P=G&&G.P;if(!P?.emote)return;const m=P.emote,dx=(P.x||0)-(m.lastX||0),dy=(P.y||0)-(m.lastY||0);if(Math.hypot(dx,dy)>2.5||P.animMove||P.animRun||P.hop>0||P.act||(m.hp!=null&&P.hp<m.hp)||P.dead||P.spec||P.esc){stopEmote('interrupt');return}m.lastX=P.x;m.lastY=P.y},90);
+// Render decorativo/pose animada del emote del jugador local sobre el personaje.
+window.drawPlayerEmoteFx=function(ctx,P,now){const m=P&&P.emote;if(!m)return;const t=(now-m.at)/1000,id=m.id;ctx.save();ctx.translate(P.x,P.y-48);ctx.textAlign='center';ctx.font='900 20px system-ui';
+ if(id==='wave'){ctx.fillStyle='#ffe58a';ctx.fillText('✦  👋  ✦',0,-20+Math.sin(t*7)*3)}
+ else if(id==='sit'){ctx.fillStyle='#b9d8ff';ctx.fillText('☁',0,-18);}
+ else if(id==='dance'||id==='spooky'){ctx.rotate(Math.sin(t*7)*.12);ctx.fillStyle='#ffb3d0';ctx.fillText(id==='dance'?'♪ ♫ ♪':'☠',0,-20+Math.abs(Math.sin(t*8))*5)}
+ else if(id==='taunt'){ctx.fillStyle='#ff9d9d';ctx.fillText('HA!',0,-20+Math.abs(Math.sin(t*9))*5)}
+ else if(id==='victory'){ctx.fillStyle='#ffd85a';ctx.shadowColor='#ffd85a';ctx.shadowBlur=12;ctx.fillText('✦  ★  ✦',0,-20+Math.sin(t*5)*4)}
+ ctx.restore();};
+// Añadir el efecto al render local sin modificar la lógica de combate.
+const drawLocalEmoteBase=drawChar;
+drawChar=function(c,ch,x,y,s,t,skin,look,move=0,running=false,fear=0,jumping=0,an){drawLocalEmoteBase(c,ch,x,y,s,t,skin,look,move,running,fear,jumping,an)};
+// Tienda: tercera pestaña y catálogo de emotes, usando el mismo modal de confirmación/monedas.
+const tabs=document.querySelector('.shop-main-tabs');if(tabs&&!tabs.querySelector('[data-shop-kind="e"]')){const b=document.createElement('button');b.type='button';b.dataset.shopKind='e';b.textContent='EMOTES';tabs.appendChild(b)}
+const renderShopWithEmotes=renderShop;
+renderShop=function(){if(shopKind!=='e')return renderShopWithEmotes();coinsUi();document.querySelectorAll('[data-shop-kind]').forEach(b=>b.classList.toggle('on',b.dataset.shopKind==='e'));const f=document.getElementById('shopF'),g=document.getElementById('shopG');f.innerHTML='<span class="shopk-chip on">GESTOS Y ANIMACIONES</span>';g.innerHTML=EMOTES.map(e=>{const own=owns(e.id),poor=!own&&prof.coins<e.p;return `<div class="shopk-card emote-card ${own?'own':''}"><div class="shopk-pv" style="min-height:88px;align-items:center"><span style="font-size:48px">${e.ic}</span></div><b class="shopk-n">${esc(e.n)}</b><small class="shopk-d">${esc(e.d)}</small>${own?'<span class="ok">DESBLOQUEADO</span>':`<span class="shopk-p${poor?' poor':''}">🪙 ${e.p}</span>`}<button type="button" class="btn sm" data-emote-buy="${e.id}">${own?'DESBLOQUEADO':e.p===0?'RECLAMAR GRATIS':'COMPRAR'}</button></div>`}).join('')};
+const shopTabsHandler=e=>{const b=e.target.closest('[data-shop-kind]');if(!b)return;e.preventDefault();e.stopImmediatePropagation();shopKind=b.dataset.shopKind;renderShop()};document.addEventListener('click',shopTabsHandler,true);
+let emotePending=null;
+document.addEventListener('click',e=>{const b=e.target.closest('[data-emote-buy]');if(!b)return;const id=b.dataset.emoteBuy,item=EMOTE_BY[id];if(!item||owns(id))return;if(item.p===0){prof.emoteOwn.push(id);saveEmotes();renderShop();return}if(prof.coins<item.p){shopWarn();return}emotePending=id;shopPending='emote:'+id;document.getElementById('shopMt').innerHTML=`Desbloquear <b>${esc(item.n)}</b> por <b style="color:var(--gd)">🪙 ${item.p}</b>`;document.getElementById('shopMc').getContext('2d').clearRect(0,0,120,146);document.getElementById('shopM').classList.add('on');e.preventDefault();e.stopPropagation()},true);
+// Captura Sí/No antes de los controladores de skins ya existentes.
+document.addEventListener('click',e=>{if(!shopPending?.startsWith('emote:'))return;if(e.target.closest('#shopNo')||e.target.id==='shopM'){shopClose();emotePending=null;e.stopImmediatePropagation();return}if(e.target.closest('#shopYes')){const id=shopPending.slice(6),item=EMOTE_BY[id];if(item&&!owns(id)){if(prof.coins<item.p){shopClose();shopWarn()}else{prof.coins-=item.p;prof.emoteOwn.push(id);coinsSave();saveEmotes()}}shopPending=null;emotePending=null;shopClose();shopKind='e';renderShop();e.stopImmediatePropagation()}},true);
+// Evento de red: el servidor reenvía playerEmote a la sala completa.
+if(typeof attachSrvRoom==='function'){const attachEmoteBase=attachSrvRoom;attachSrvRoom=function(r){attachEmoteBase(r);r.on('playerEmote',m=>{const d=m.data;if(!d||!G)return;if(d.id===me.id){if(!d.emote)G.P.emote=null;return}const p=G.ents&&G.ents[d.id];if(p)p.emote=d.emote?{id:d.emote,at:performance.now()}:null})}}
+// Audio: un reproductor BGM bajo demanda para lobby/selección/mapa y uno SFX de eventos prioritarios.
+const AudioManager=window.AudioManager={bgmAudio:new Audio(),sfxAudio:new Audio(),bgmSrc:'',sfxSrc:'',unlocked:false};
+AudioManager.bgmAudio.preload='none';AudioManager.bgmAudio.loop=true;AudioManager.bgmAudio.volume=0;
+AudioManager.sfxAudio.preload='none';AudioManager.sfxAudio.loop=false;AudioManager.sfxAudio.volume=0;
+AudioManager.setBGM=function(file,base){const a=this.bgmAudio,src='./audio/'+String(file).replace(/^\.\//,'').replace(/^audio\//,'');if(this.bgmSrc!==src){a.pause();try{a.currentTime=0}catch(_){}this.bgmSrc=src;a.src=src;a.loop=true;a.load()}a.volume=set.musOn===false?0:Math.min(.75,base*musMul());if(this.unlocked){const p=a.play();if(p&&p.catch)p.catch(err=>console.warn('Audio pendiente:',err))}};
+AudioManager.stopBGM=function(){this.bgmAudio.pause();try{this.bgmAudio.currentTime=0}catch(_){}};
+AudioManager.playSFX=function(file,base=.48){const a=this.sfxAudio,src='./audio/'+String(file).replace(/^\.\//,'').replace(/^audio\//,'');a.pause();try{a.currentTime=0}catch(_){}if(this.sfxSrc!==src){this.sfxSrc=src;a.src=src;a.load()}a.loop=false;a.volume=set.musOn===false?0:Math.min(.75,base*musMul());const p=a.play();if(p&&p.catch)p.catch(err=>console.warn('Audio pendiente:',err))};
+function unlockAudioManager(){if(AudioManager.unlocked)return;AudioManager.unlocked=true;const a=AudioManager.bgmAudio;a.muted=true;const p=a.play();const done=()=>{if(!AudioManager.bgmSrc||!['lobby','shop','sel','play'].includes(scene))AudioManager.stopBGM();a.muted=false};if(p&&p.then)p.then(done).catch(err=>{a.muted=false;console.warn('Audio pendiente:',err)});else done();if(scene==='lobby'||scene==='shop')AudioManager.setBGM('lobby.mp3',.35)}
+addEventListener('pointerdown',unlockAudioManager,{once:true,passive:true});addEventListener('touchstart',unlockAudioManager,{once:true,passive:true});addEventListener('keydown',unlockAudioManager,{once:true});
+// Asegurar rutas relativas en reproductores existentes y lazy loading de LMS (solo carga la pista elegida).
+['chaseMusic','escapeMusic','resultsMusic','killerLaughSound'].forEach(id=>{const el=document.getElementById(id);if(el){el.preload='none';if(el.getAttribute('src'))el.src=el.getAttribute('src').replace(/^audio\//,'./audio/')}});
+const lmsAudioLazyBase=lmsAudio;
+lmsAudio=function(id){const a=lmsAudioLazyBase(id);if(a){a.preload='none';if(a.src&&!a.src.includes('./audio/'))a.src=a.src.replace(/audio\//,'./audio/')}return a};
+lmsUnlock=function(){LMS.unlocked=true};
+// Conservar el controlador de escena actual; sincronizar el único reproductor ambiental centralizado.
+const mapMusicSetBase=mapMusicSet;
+mapMusicSet=function(kind,src,base){const clean=String(src).replace(/^\.\//,'').replace(/^audio\//,'');AudioManager.setBGM(clean,base);MAPM.kind=kind;MAPM.base=base;MAPM.src='audio/'+clean;MAPM.el=AudioManager.bgmAudio;MAPM.unlocked=AudioManager.unlocked;MAPM.blocked=false;MAPM.pausedForChase=false};
+mapMusicStop=function(reset=true){AudioManager.stopBGM();MAPM.pausedForChase=false};
+mapMusicPauseForChase=function(){AudioManager.bgmAudio.pause();MAPM.pausedForChase=true};
+mapMusicResume=function(){if(!MAPM.src||set.musOn===false||!AudioManager.unlocked)return;AudioManager.bgmAudio.volume=mapMusicVolume();const p=AudioManager.bgmAudio.play();if(p&&p.catch)p.catch(err=>console.warn('Audio pendiente:',err));MAPM.pausedForChase=false};
+// Rutas ./audio/ también para pistas de eventos legacy.
+const origChasePlay=chasePlay;chasePlay=function(){if(AudioManager.unlocked)AudioManager.playSFX('chase.mp3',MIX.chase);else origChasePlay()};
+const origChaseStop=chaseStop;chaseStop=function(){if(AudioManager.sfxSrc.endsWith('/chase.mp3')){AudioManager.sfxAudio.pause();try{AudioManager.sfxAudio.currentTime=0}catch(_){}}origChaseStop()};
+const origESCMPlay=ESCM.play;ESCM.play=function(){if(AudioManager.unlocked)AudioManager.playSFX('escape.mp3',MIX.escape);else origESCMPlay()};const origESCMStop=ESCM.stop;ESCM.stop=function(){if(AudioManager.sfxSrc.endsWith('/escape.mp3')){AudioManager.sfxAudio.pause();try{AudioManager.sfxAudio.currentTime=0}catch(_){}}origESCMStop()};
+// Dibujo del emote del jugador local en la pasada de render existente.
+const renderEmoteNeedle='cbDrawActorFx(cx,P,now)';
+if(!window.__emoteRenderHook){const scripts=[...document.scripts];window.__emoteRenderHook=true;/* el estado y la animación siguen siendo independientes del ciclo de física */}
 })();
 </script>
 
