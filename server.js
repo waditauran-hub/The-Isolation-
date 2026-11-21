@@ -297,7 +297,7 @@ function handleMessage(s,raw){
  let ok=false;
  if(m.type==='act'&&s!==room.host)ok=validAct(m.data);
  else if(m.type==='gp'&&s!==room.host)ok=validPosition(m.data);
- else if(m.type==='ga'&&s!==room.host)ok=validGameAction(m.data);
+ else if(m.type==='ga'&&s!==room.host){if(room.lms&&m.data&&['mopen','mclose','mdone'].includes(m.data.t))return;ok=validGameAction(m.data);}
  else if(['st','gs','deny'].includes(m.type)&&s===room.host)ok=validState(m.type,m.data);
  if(!ok)return;
  if(m.type==='act'&&m.data.t==='join'){s.pids=s.pids||{};if(!s.pids[m.room])s.pids[m.room]=m.data.id;}
