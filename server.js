@@ -261,8 +261,31 @@ function handleMessage(s,raw){
  if(m.type==='chatMessage')return handleChat(s,m.room,room,m.data);
  // Inicio manual: solo el anfitrión real puede adelantar el contador del Lobby.
  if(m.type==='forceStartRound'){const R=room.R,id=s.pids&&s.pids[m.room];if(!R||R.st!=='lobby'||R.mode==='r'||!id||id!==R.host||R.pp[id]!==s.pid||room.host!==s)return;const remaining=R.cdEnd?R.cdEnd-Date.now():Infinity;if(remaining>3000||!R.cdEnd){R.cdEnd=Date.now()+3000;R.forceStart=true;R.ready=true;rsys(R,'El anfitrión inició la ronda.');}roomBroadcast(room,m.room);return;}
- // LAST MAN STANDING: el anfitrión avisa y el servidor lo anuncia a TODA la sala (también a quienes ya volvieron al Lobby)
- if(m.type==='lms'){const d=m.data;if(s===room.host&&isObj(d)&&short(d.c,8)&&isFinite(+d.d)&&isFinite(+d.o)){const out={c:d.c,d:Math.max(0,Math.min(600,+d.d)),o:Math.max(0,Math.min(600,+d.o)),t:Math.max(0,Math.min(600,+d.t||0))};room.lms={...out,at:Date.now()};for(const t of room.clients)send(t,{op:'msg',room:m.room,type:'lmsStarted',data:out,peer:'server'})}return}
+ // ALERTA DE ATAQUE: solo el anfitrión puede originarla; el servidor la entrega
+ // únicamente a sockets cuyo jugador figura como superviviente en el estado autoritativo.
+ if(m.type==='survivorAttacked'){
+  if(s!==room.host)return;
+  const d=m.data,id=d&&d.id,R=room.R,roles=R&&R.roles||room.state&&room.state.roles||{};
+  if(!short(id,40)||roles[id]!=='s')return;
+  const rawName=R&&R.pl&&R.pl[id]&&R.pl[id].name||room.state&&room.state.names&&room.state.names[id]||'Un superviviente';
+  const name=cleanChat(rawName,24)||'Un superviviente';
+  for(const target of room.clients){
+   const targetId=target.pids&&target.pids[m.room];
+   if(targetId&&roles[targetId]==='s')send(target,{op:'msg',room:m.room,type:'survivorAttacked',data:{name},peer:'server'});
+  }
+  return;
+ }
+ // LMS: un único anuncio por ronda. El estado de juego sigue sincronizándose
+ // en los paquetes gs existentes; no se reemite este evento en cada actualización.
+ if(m.type==='lms'){
+  const d=m.data;
+  if(s===room.host&&!room.lms&&isObj(d)&&short(d.c,8)&&isFinite(+d.d)&&isFinite(+d.o)){
+   const out={c:d.c,d:Math.max(0,Math.min(600,+d.d)),o:Math.max(0,Math.min(600,+d.o)),t:Math.max(0,Math.min(600,+d.t||0))};
+   room.lms={...out,at:Date.now()};
+   for(const target of room.clients)send(target,{op:'msg',room:m.room,type:'lmsStarted',data:out,peer:'server'});
+  }
+  return;
+ }
  // flujo de sala con autoridad del servidor
  if(m.type==='st'&&s===room.host&&!room.R){if(!validState('st',m.data))return;const R=createRoomState(m.room,s,m.data);if(R){room.R=R;roomBroadcast(room,m.room)}return}
  if(room.R){
