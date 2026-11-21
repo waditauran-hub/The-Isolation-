@@ -126,6 +126,12 @@ function validPresence(p){if(!isObj(p)||!isObj(p.r))return false;const r=p.r;ret
 const COUNTDOWN_MS=180000, SELECT_MS=35000, ALLIN_MS=3000, RESULTS_MS=Number(process.env.RESULTS_MS)||90000, SEG_LEN={1:22,2:22,3:23,4:21,5:19,6:21}, REVEAL_MS=1800, KLHOST_CLOSE_MS=27000, MAX_NAME=14;
 const MAPS=['Bosque maldito','Fábrica abandonada','Salón de juegos'];
 const SURV_IDS=['val','dan','zoe','sam','abr','nic','lia','tom'], KILL_IDS=['cos','enl','pay','doc','wlf'], ALL_IDS=SURV_IDS.concat(KILL_IDS);
+// Configuración de cooldowns compartida: el cliente ejecuta la simulación y el servidor limita/sincroniza los valores publicados.
+const SURVIVOR_COOLDOWNS={val:[40,35],dan:[45,50],zoe:[45,65],sam:[80,65],abr:[70,70],nic:[75,60],lia:[65,65],tom:[65,65]};
+const KILLER_BASIC_COOLDOWN=0.5, LMS_COOLDOWN_MULTIPLIER=0.70;
+const COMBAT_COOLDOWN_CONFIG={survivors:SURVIVOR_COOLDOWNS,killerBasic:KILLER_BASIC_COOLDOWN,lmsMultiplier:LMS_COOLDOWN_MULTIPLIER};
+function capGameCooldowns(d,room){if(!isObj(d)||!Array.isArray(d.p))return;const factor=room&&room.lms?LMS_COOLDOWN_MULTIPLIER:1;for(const p of d.p){if(!isObj(p))continue;if(p.k){if(finite(p.la))p.la=Math.max(0,Math.min(KILLER_BASIC_COOLDOWN*factor,p.la));continue}if(Array.isArray(p.cd))p.cd=p.cd.slice(0,5).map(v=>Math.max(0,finite(v)?v:0));}}
+
 const pick1=a=>a[Math.floor(Math.random()*a.length)];
 const humans=R=>Object.keys(R.pl).filter(i=>!R.pl[i].bot);
 function newPl(name,sk,looks,ch){return{name:cleanChat(name||'',MAX_NAME)||'JUGADOR',x:.2+Math.random()*.6,y:.3+Math.random()*.6,sk:short(sk,64)?sk:'basic',looks:isObj(looks)&&safeSize(looks)?looks:{},ch:short(ch,48)?ch:'val',say:'',sayT:0}}
@@ -135,7 +141,7 @@ function rdeny(room,roomName,s,id,m){rmsg(room,roomName,'deny',{to:id,m},s)}
 function rollRound(R){const ids=humans(R);R.nextMap=pick1(MAPS);R.map=R.nextMap;R.botKiller=!!R.botMode;const prev=R.hist.length?(R.hist[R.hist.length-1].ids||[]):[];let pool=ids.filter(i=>!prev.includes(i));if(!pool.length)pool=ids.slice();R.nextKiller=R.botKiller?null:(pool.length?pick1(pool):null);R.kid=null;R.killerId=null}
 function createRoomState(roomName,s,d){
  const code=roomName.slice(3).toUpperCase();if(!short(d.code,5)||d.code.toUpperCase()!==code||!short(d.host,40)||!isObj(d.pl)||!isObj(d.pl[d.host]))return null;
- const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:d.mode==='r'?'play':'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,forceStart:false,botMode:d.mode==='r'?false:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},disconnected:{},now:0};
+ const hp=d.pl[d.host],R={code,nm:cleanChat(d.nm||'',48)||('Sala de '+cleanChat(hp.name||'',MAX_NAME)),host:d.host,pub:d.pub!==false,map:MAPS[0],nextMap:MAPS[0],nextKiller:null,killerId:null,mode:d.mode==='r'?'r':'s',nk:1,st:d.mode==='r'?'play':'lobby',pl:{},votes:{},mapVotes:{},roles:{},picks:{},conf:{},hist:[],chat:[],ready:false,cdEnd:0,cd:null,selEnd:0,selLeft:null,solo:false,forceStart:false,botMode:d.mode==='r'?false:!!d.botMode,botKiller:false,kid:null,closed:false,srv:1,pp:{},disconnected:{},combatCooldowns:COMBAT_COOLDOWN_CONFIG,now:0};
  R.pl[d.host]=newPl(hp.name,hp.sk,hp.looks,hp.ch);R.pp[d.host]=s.pid;if(R.mode==='r'){R.picks[d.host]=R.pl[d.host].ch;R.roles[d.host]=KILL_IDS.includes(R.pl[d.host].ch)?'k':'s';R.pl[d.host].map=R.map;}s.pids=s.pids||{};s.pids[roomName]=d.host;
  rsys(R,'Sala creada. Comparte el código '+code+'.');rollRound(R);return R}
 function roomBroadcast(room,roomName){const R=room.R;if(!R)return;const now=Date.now();R.now=now;R.cd=R.st==='lobby'&&R.cdEnd?Math.max(0,R.cdEnd-now):null;R.selLeft=R.st==='sel'&&R.selEnd?Math.max(0,R.selEnd-now):null;rmsg(room,roomName,'st',R)}
@@ -190,14 +196,14 @@ function roomAct(room,roomName,s,a){const R=room.R;
 function roomAdmin(room,roomName,s,d){const R=room.R;if(s!==room.host||!isObj(d))return;
  if(d.a==='bot'){if(R.mode==='r')return;R.botMode=!!d.v;if(R.st==='lobby'){R.cdEnd=0;rollRound(R)}rsys(R,R.botMode?'MODO BOT activado: todos son supervivientes contra el asesino IA.':'MODO BOT desactivado: un jugador será el asesino.')}
  else if(d.a==='kick'&&short(d.id,40)&&d.id!==R.host&&R.pl[d.id]){for(const t of room.clients)if(t.pids&&t.pids[roomName]===d.id)rdeny(room,roomName,t,d.id,'Fuiste expulsado/a por el anfitrión');dropPlayer(room,roomName,d.id,' fue expulsado')}
- else if(d.a==='lobby'){R.overAt=0;R.st='lobby';R.ready=false;R.forceStart=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R)}
+ else if(d.a==='lobby'){room.lms=null;R.overAt=0;R.st='lobby';R.ready=false;R.forceStart=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R)}
  else if(d.a==='pub'){R.pub=!!d.v}
  roomBroadcast(room,roomName)}
 function roomTick(room,roomName){const R=room.R;if(!R||R.closed)return;const now=Date.now();if(R.disconnected&&R.disconnected[R.host]){roomBroadcast(room,roomName);return;}if(R.mode==='r'){R.st='play';R.cdEnd=0;R.cd=null;R.selEnd=0;R.selLeft=null;R.botMode=false;R.ready=false;return;}
  // resultados: si el anfitrión no vuelve al lobby en 90 s, el servidor devuelve la sala sola (evita salas trabadas)
  // resultados: todos vuelven juntos al lobby cuando termina el segmento de audio/resultados.mp3 (+ fundido)
  const resMs=R.overAt?Math.min(RESULTS_MS,REVEAL_MS+(SEG_LEN[R.endVr]||22)*1000+700):RESULTS_MS;
- if(R.st==='play'&&R.overAt&&!R.hostGone&&now-R.overAt>=resMs){R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R);rsys(R,'Fin de los resultados: volvieron todos al lobby.');return roomBroadcast(room,roomName)}
+ if(R.st==='play'&&R.overAt&&!R.hostGone&&now-R.overAt>=resMs){room.lms=null;R.overAt=0;R.st='lobby';R.ready=false;R.cdEnd=0;R.cd=null;R.selEnd=0;R.picks={};R.conf={};R.roles={};R.votes={};R.mapVotes={};R.killerId=null;R.kid=null;R.botKiller=false;for(const id of Object.keys(R.pl))if(R.pl[id].bot)delete R.pl[id];rollRound(R);rsys(R,'Fin de los resultados: volvieron todos al lobby.');return roomBroadcast(room,roomName)}
  if(R.st==='lobby'){const enough=humans(R).length>=2,ok=enough||!!R.forceStart;R.ready=ok;if(ok&&!R.cdEnd)R.cdEnd=now+COUNTDOWN_MS;if(!ok)R.cdEnd=0;if(R.cdEnd&&now>=R.cdEnd)return startCharacterSelect(room,roomName)}
  else if(R.st==='sel'&&R.selEnd&&now>=R.selEnd){const kid=R.killerId;
   if(kid&&R.pl[kid]&&!R.pl[kid].bot&&!R.picks[kid])return cancelSelect(room,roomName,'Selección cancelada: '+R.pl[kid].name+' no eligió asesino a tiempo. Se sortearon nuevo asesino y mapa.');
@@ -272,9 +278,10 @@ function handleMessage(s,raw){
  else if(['st','gs','deny'].includes(m.type)&&s===room.host)ok=validState(m.type,m.data);
  if(!ok)return;
  if(m.type==='act'&&m.data.t==='join'){s.pids=s.pids||{};if(!s.pids[m.room])s.pids[m.room]=m.data.id;}
- if(m.type==='gs'&&room.R&&room.R.st==='play'&&m.data.w&&!room.R.overAt){room.R.overAt=Date.now();room.R.endVr=Math.min(6,Math.max(1,Math.floor(+m.data.vr)||5))}
+ if(m.type==='gs'){capGameCooldowns(m.data,room);if(room.R&&room.R.st==='play'&&m.data.w&&!room.R.overAt){room.R.overAt=Date.now();room.R.endVr=Math.min(6,Math.max(1,Math.floor(+m.data.vr)||5))}}
  if(m.type==='st'){const d=m.data,names={};for(const k of Object.keys(d.pl))if(isObj(d.pl[k]))names[k]=typeof d.pl[k].name==='string'?d.pl[k].name:'';room.state={st:d.st,roles:isObj(d.roles)?d.roles:{},names};if(short(d.host,40)){s.pids=s.pids||{};s.pids[m.room]=d.host;}}
  for(const target of room.clients)if(target!==s)send(target,{op:'msg',room:m.room,type:m.type,data:m.data,peer:s.pid});
+ if(m.type==='gs'&&m.data.w)room.lms=null;
 }
 setInterval(()=>{if(!presenceDirty)return;presenceDirty=false;const list=[...clients].map(s=>({id:s.pid,presence:s.pres||null}));for(const s of clients)send(s,{op:'peers',list});},750).unref();
 // Heartbeat de aplicación: mantiene activo el WebSocket detrás del proxy de Render.
